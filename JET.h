@@ -8,7 +8,9 @@ class Jet {
   Eigen::Matrix<double, N, 1> gradient_;
 
  public:
-  Jet(double value = 0.0) : value_(value), gradient_() {}
+  Jet(double value = 0.0) : value_(value), gradient_() {
+    gradient_.Zero();
+  }
   Jet(double value, int index) : value_(value), gradient_() {
     gradient_.Zero();
     gradient_(index) = 1.0;
