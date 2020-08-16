@@ -16,7 +16,7 @@ Eigen::Matrix<double, parameter_num, 1>& x0) {
         }
         Eigen::Matrix<double, parameter_num, 1> search_direct = -functor.Jacobian(x0);
         //std::cout << " nagative gradient : " << search_direct.transpose() << std::endl;
-        double step_size = BackTracing<AutoDiffFunction<Functor, residual_num, parameter_num>, parameter_num>(functor, x0, search_direct);
+        double step_size = BackTracing(functor, x0, search_direct);
         //std::cout << "step_size : " << step_size << std::endl;
         x0 = x0 + step_size * search_direct;
         //std::cout << "x : " << x0.transpose() << std::endl;

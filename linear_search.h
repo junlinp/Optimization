@@ -1,9 +1,9 @@
 #ifndef OPTIMIZATION_LINEAR_SEARCH_H_
 #define OPTIMIZATION_LINEAR_SEARCH_H_
 #include "Eigen/Dense"
-
-template<class Functor, int parameter_num>
-double BackTracing(Functor& function_, Eigen::Matrix<double, parameter_num, 1>& x0, Eigen::Matrix<double, parameter_num, 1>& search_direct) {
+#include "JET.h"
+template<class Functor,int residual_num, int parameter_num>
+double BackTracing(AutoDiffFunction<Functor, residual_num, parameter_num>& function_, Eigen::Matrix<double, parameter_num, 1>& x0, Eigen::Matrix<double, parameter_num, 1>& search_direct) {
    double t = 1.0; 
    double alpha = 0.2, beta = 0.8;
    function_(x0 + t * search_direct);
