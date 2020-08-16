@@ -8,11 +8,16 @@ class Jet {
   Eigen::Matrix<double, N, 1> gradient_;
 
  public:
+ EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   Jet(double value = 0.0) : value_(value), gradient_() {
-    gradient_.Zero();
+    for (int i = 0; i < N; i++) {
+      gradient_(i) = 0.0;
+    }
   }
   Jet(double value, int index) : value_(value), gradient_() {
-    gradient_.Zero();
+    for (int i = 0; i < N; i++) {
+      gradient_(i) = 0.0;
+    }
     gradient_(index) = 1.0;
   }
 
@@ -20,7 +25,7 @@ class Jet {
       : value_(value), gradient_(gradient) {}
   double value() const { return value_; }
 
-  Eigen::Matrix<double, N, 1> Gradient() { return gradient_; }
+  Eigen::Matrix<double, N, 1> Gradient() const { return gradient_; }
 
   template <int T>
   friend Jet<T> operator+(const Jet<T>& lhs, const Jet<T>& rhs);
@@ -65,7 +70,7 @@ class AutoDiffFunction {
       x_wrap[i] = Jet<parameter_num>(x(i), i);
     }
     std::vector<Jet<parameter_num>> residual_wrap(residual_num);
-    functor_(x_wrap.data(), residual_wrap.data());
+    functor_(&x_wrap[0], &residual_wrap[0]);
     Eigen::Matrix<double, residual_num, 1> res;
     for (int i = 0; i < residual_num; i++) {
       res(i) = residual_wrap[i].value();
@@ -79,11 +84,12 @@ Eigen::Matrix<double, residual_num, parameter_num> Gradient(
       x_wrap[i] = Jet<parameter_num>(x(i), i);
     }
     std::vector<Jet<parameter_num>> residual_wrap(residual_num);
-    functor_(x_wrap.data(), residual_wrap.data());
+    functor_(&x_wrap[0], &residual_wrap[0]);
     Eigen::Matrix<double, residual_num, parameter_num> res;
     for (int i = 0; i < residual_num; i++) {
+        Eigen::Matrix<double, parameter_num, 1> gradient = residual_wrap[i].Gradient();
         for (int j = 0; j < parameter_num; j++) {
-            res(i, j) = residual_wrap[i].Gradient()(j);
+            res(i, j) = gradient(j);
         }
     }
     return res;
