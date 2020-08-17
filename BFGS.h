@@ -2,6 +2,7 @@
 #define OPTIMIZATION_BFGS_H_
 #include "JET.h"
 #include "linear_search.h"
+#include "glog/logging.h"
 
 template <int parameter_num>
 void UpdateHessianInverse(
@@ -21,17 +22,19 @@ bool BFGS(AutoDiffFunction<Functor, residual_num, parameter_num>& functor,
           Eigen::Matrix<double, parameter_num, 1>& x0) {
   Eigen::Matrix<double, parameter_num, parameter_num> hessian_inverse =
       Eigen::Matrix<double, parameter_num, parameter_num>::Identity();
-const double EPS = 1e-9;
-  int max_num_iterator = 500;
+const double EPS = 1e-11;
+  int max_num_iterator = 1000;
   for (int iterator = 0; iterator < max_num_iterator; iterator++) {
       auto error = functor(x0);
-      if (error.norm() < EPS) {
+    auto gradient = functor.Jacobian(x0);
+      if (gradient.norm() < EPS) {
           return true;
       }
-    auto gradient = functor.Jacobian(x0);
     Eigen::Matrix<double, parameter_num, 1> direct = -hessian_inverse * gradient;
     double t = BackTracing(functor, x0, direct);
     x0 = x0 + t * direct;
+    DLOG(INFO) << "Move : " << t * direct.transpose() << std::endl;
+    DLOG(INFO) << "x : " << x0.transpose() << std::endl;
     Eigen::Matrix<double, parameter_num, 1> s = t * direct;
     auto new_gradient = functor.Jacobian(x0);
     Eigen::Matrix<double, parameter_num, 1> y = new_gradient - gradient;

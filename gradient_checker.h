@@ -18,7 +18,7 @@ bool GradientChecker(AutoDiffFunction<Functor, residual_num, parameter_num> func
             auto error = functor(x_plus) - functor(x_sub);
             auto computed_gradient = error(residual_index) / 2.0 / EPS;
 
-            if (std::abs(auto_gradient - computed_gradient) > 1e-9) {
+            if (std::abs(auto_gradient - computed_gradient) > 1e-5) {
                 std::cerr << "Gradient error " << std::endl;
                 std::cerr << "where the auto_gradient is " << auto_gradient << std::endl;
                 std::cerr << " the mathematic gradient is : " << computed_gradient << std::endl;
