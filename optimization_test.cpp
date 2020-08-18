@@ -1,8 +1,10 @@
 #include "BFGS.h"
 #include "JET.h"
+#include "LBFGS.h"
 #include "gradient_checker.h"
 #include "gradient_decent.h"
 #include "gtest/gtest.h"
+
 TEST(JET, Plus) {
   Jet<2> a(1.0, 0);
   Jet<2> b(2.0, 1);
@@ -37,26 +39,26 @@ TEST(JET, Multiple) {
 }
 
 TEST(JET, Eigen_Map) {
-    std::vector<Jet<2>> input(2);
-    for(int i = 0; i < 2; i++) {
-        input[i] = Jet<2>(i + 1, i);
-    }
-    auto eigen = Eigen::Map<Eigen::Matrix<Jet<2>, 2, 1>>(&input[0]);
-    auto first_element = eigen(0);
-    auto second_element = eigen(1);
-    EXPECT_EQ(first_element.value(), 1.0);
-    EXPECT_EQ(second_element.value(), 2.0);
-    EXPECT_EQ(first_element.Gradient()(0), 1.0);
-    EXPECT_EQ(first_element.Gradient()(1), 0.0);
-    EXPECT_EQ(second_element.Gradient()(0), 0.0);
-    EXPECT_EQ(second_element.Gradient()(1), 1.0);
+  std::vector<Jet<2>> input(2);
+  for (int i = 0; i < 2; i++) {
+    input[i] = Jet<2>(i + 1, i);
+  }
+  auto eigen = Eigen::Map<Eigen::Matrix<Jet<2>, 2, 1>>(&input[0]);
+  auto first_element = eigen(0);
+  auto second_element = eigen(1);
+  EXPECT_EQ(first_element.value(), 1.0);
+  EXPECT_EQ(second_element.value(), 2.0);
+  EXPECT_EQ(first_element.Gradient()(0), 1.0);
+  EXPECT_EQ(first_element.Gradient()(1), 0.0);
+  EXPECT_EQ(second_element.Gradient()(0), 0.0);
+  EXPECT_EQ(second_element.Gradient()(1), 1.0);
 
-    Eigen::Matrix<Jet<2>, 1, 1> result(eigen(0) * eigen(0) + eigen(1) * eigen(1));
+  Eigen::Matrix<Jet<2>, 1, 1> result(eigen(0) * eigen(0) + eigen(1) * eigen(1));
 
-    EXPECT_EQ(result(0).value(),  5.0);
-    auto g = result(0).Gradient();
-    EXPECT_EQ(g(0), 2.0);
-    EXPECT_EQ(g(1), 4.0);
+  EXPECT_EQ(result(0).value(), 5.0);
+  auto g = result(0).Gradient();
+  EXPECT_EQ(g(0), 2.0);
+  EXPECT_EQ(g(1), 4.0);
 }
 
 struct LinearFunctor {
@@ -122,15 +124,14 @@ TEST(LenearSyste, Gradient_CHECK) {
       return (A * x0 - b).dot(A * x0 - b);
     };
     auto computed_gradient_value = computed_gradient(x);
-    //std::cout << "gradient : " << gradient << std::endl;
-    //std::cout << "computed_gradient : " << computed_gradient_value << std::endl;
-    //std::cout << "V : " << auto_diff(x) << std::endl;
-    //std::cout << "Value : " << inference(x) << std::endl;
+    // std::cout << "gradient : " << gradient << std::endl;
+    // std::cout << "computed_gradient : " << computed_gradient_value <<
+    // std::endl; std::cout << "V : " << auto_diff(x) << std::endl; std::cout <<
+    // "Value : " << inference(x) << std::endl;
     x = x - 0.001 * computed_gradient_value;
-    //std::cout << "x : " << x.transpose() << std::endl;
+    // std::cout << "x : " << x.transpose() << std::endl;
   }
 }
-
 TEST(LenearSyste, Gradient_Decent) {
   LinearSystem functor;
   AutoDiffFunction<LinearSystem, 1, 2> auto_diff(std::move(functor));
@@ -151,6 +152,15 @@ TEST(LinearSystem, Newton_Method_BFGS) {
   EXPECT_NEAR(x(1), 3.0, 1e-9);
 }
 
+TEST(LinearSystem, Newton_Method_LBFGS) {
+  LinearSystem functor;
+  AutoDiffFunction<LinearSystem, 1, 2> auto_diff(std::move(functor));
+  Eigen::Matrix<double, 2, 1> x;
+  x << 0.0, 0.0;
+  LBFGS(auto_diff, x);
+  EXPECT_NEAR(x(0), 2.0, 1e-9);
+  EXPECT_NEAR(x(1), 3.0, 1e-9);
+}
 int main() {
   testing::InitGoogleTest();
   return RUN_ALL_TESTS();
