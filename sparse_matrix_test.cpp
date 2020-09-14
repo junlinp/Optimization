@@ -3,10 +3,12 @@
 #include "string.h"
 #include "Eigen/Dense"
 #include "chrono"
+#include "sparse_matrix.h"
+
 extern "C" {
 #include "mmio.h"
 }
-#define CONCAT(a, b) (a#b)
+
 
 void ReadMatrix(const std::string& file_name, Eigen::MatrixXd& matrix) {
     MM_typecode mattype;
@@ -18,12 +20,19 @@ void ReadMatrix(const std::string& file_name, Eigen::MatrixXd& matrix) {
     ASSERT_GT(row, 0);
     ASSERT_GT(col, 0);
     ASSERT_GT(nz, 0);
-    matrix = Eigen::MatrixXd::Zero(row, col);
+    matrix = Eigen::MatrixXd(row, col);
+    for (int i = 0; i < row * col; i++) {
+        matrix.data()[i] = 0.0;
+    }
+    int count = 0;
     for(int i = 0; i < nz; i++) {
         int r, c;
         double v;
         fscanf(fp, "%d %d %lf", &r, &c, &v); 
         matrix(r - 1, c - 1) = v;
+        if (std::abs(v) >= std::numeric_limits<double>::epsilon()) {
+            count++;
+        }
     }
     fclose(fp);
 }
@@ -74,6 +83,8 @@ TEST(illc1850, Sparse_Matrix_IO) {
     ReadMatrix(file_name, A);
     ReadVector(b_file_name, b);
     Eigen::VectorXd x;
+    SparseMatrix sA(A);
+    EXPECT_EQ(sA.nnz(), 8636);
     EigenSolver(A, b, x);
 }
 
