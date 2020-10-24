@@ -21,7 +21,12 @@ Eigen3::Eigen
 glog::glog
 )
 
+add_compile_options(-Wall -Wextra -pedantic -Werror)
+
 add_executable(Sparse_Matrix_Test sparse_matrix_test.cpp )
 target_link_libraries(Sparse_Matrix_Test GTest::GTest mmio)
 target_compile_definitions(Sparse_Matrix_Test
     PRIVATE -DTest_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
+
+add_executable(IterativeMethodTest itertive_method_test.cpp)
+target_link_libraries(IterativeMethodTest GTest::GTest)
