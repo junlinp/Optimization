@@ -7,7 +7,7 @@ TEST(Test, t) {
     EXPECT_TRUE(true);
 
 }
-
+/*
 TEST(HouseHolder, two_x_two) {
     Eigen::MatrixXd X(2, 2);
     X << -0.99984, 0.511211,
@@ -19,9 +19,10 @@ TEST(HouseHolder, two_x_two) {
     std::cout << "R : " << R <<std::endl;
     std::cout << "Q * Q: " << Q * Q.transpose() << std::endl;
 }
+*/
 
 TEST(HouseHolder, four_x_four) {
-    const int n = 4;
+    const int n = 3;
     Eigen::MatrixXd X = Eigen::MatrixXd::Random(n, n);
     Eigen::MatrixXd Q(n, n), R(n, n);
     HouseHolder(X, Q, R);
@@ -35,10 +36,28 @@ TEST(HouseHolder, eight_x_eight) {
     Eigen::MatrixXd X = Eigen::MatrixXd::Random(n, n);
     Eigen::MatrixXd Q(n, n), R(n, n);
     HouseHolder(X, Q, R);
-    std::cout << "X : " << X <<std::endl;
-    std::cout << "Q : " << Q <<std::endl;
-    std::cout << "R : " << R <<std::endl;
-    std::cout << "Q * Q: " << Q * Q.transpose() << std::endl;
+    //std::cout << "X : " << X <<std::endl;
+    //std::cout << "Q : " << Q <<std::endl;
+    //std::cout << "R : " << R <<std::endl;
+    //std::cout << "Q * Q: " << Q * Q.transpose() << std::endl;
+}
+TEST(HouseHolder, big) {
+    const int n = 16;
+    Eigen::MatrixXd X = Eigen::MatrixXd::Random(n, n);
+    Eigen::MatrixXd Q(n, n), R(n, n);
+    HouseHolder(X, Q, R);
+    //std::cout << "X : " << X <<std::endl;
+    //std::cout << "Q : " << Q <<std::endl;
+    //std::cout << "R : " << R <<std::endl;
+    //std::cout << "Q * Q: " << Q * Q.transpose() << std::endl;
+}
+
+TEST(GMRES, Simple_Test) {
+    int n = 2;
+    Eigen::MatrixXd A = Eigen::MatrixXd::Random(n, n);
+    Eigen::VectorXd b = Eigen::VectorXd::Random(n);
+    Eigen::VectorXd x = Eigen::VectorXd::Random(n);
+    GMRES(A, b, x);
 }
 int main() {
   testing::InitGoogleTest();

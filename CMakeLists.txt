@@ -30,3 +30,6 @@ target_compile_definitions(Sparse_Matrix_Test
 
 add_executable(IterativeMethodTest itertive_method_test.cpp)
 target_link_libraries(IterativeMethodTest GTest::GTest)
+
+
+add_subdirectory(bal)
