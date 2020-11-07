@@ -15,8 +15,13 @@ int main() {
     std::cout << "Cameras : " << problem.cameras_.size() << std::endl;
     std::cout << "Points : " << problem.points_.size()  << std::endl;
     std::cout << "Observation : " << problem.observations_.size() << std::endl;
+    for(int i = 0; i < 9; i++) {
+        std::cout << problem.cameras_[0].params[i] << std::endl;
+    }
+    std::cout << "Point : " << problem.points_[0] << std::endl;
     Eigen::VectorXd e;
     Eigen::MatrixXd j;
-    Evaluate(problem, e, j);
+    //Evaluate(problem, e, j);
+    //ceres::AngleAxisRotatePoint();
     return 0;
 }

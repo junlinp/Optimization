@@ -26,6 +26,27 @@ class Jet {
   double value() const { return value_; }
 
   Eigen::Matrix<double, N, 1> Gradient() const { return gradient_; }
+  
+  Jet<N>& operator+=(const Jet<N>& rhs) {
+    this->value_ += rhs.value_;
+    this->gradient_ += rhs.gradient_;
+    return *this;
+  }
+
+  Jet<N>& operator+=(const double& rhs) {
+    this->value_ += rhs;
+    return *this;
+  }
+
+  Jet<N> operator-() {
+    Jet<N> res(-1.0 * value_, -1.0 * gradient_);
+    return res;
+  }
+
+  Jet<N>& operator/=(const Jet<N>& rhs) {
+    *this = *this / rhs;
+    return *this;
+  }
 
   template <int T>
   friend Jet<T> operator+(const Jet<T>& lhs, const Jet<T>& rhs);
@@ -62,6 +83,8 @@ class Jet {
 
   template <int T>
   friend Jet<T> sqrt(const Jet<T>& sour);
+
+
 };
 
 template <int N>
@@ -111,7 +134,7 @@ Jet<N> operator*(double s, const Jet<N>& lhs) {
 
 template <int N>
 Jet<N> operator/(const Jet<N>& lhs, const Jet<N>& rhs) {
-  return Jet<N>(lhs.value_ * rhs.value_,
+  return Jet<N>(lhs.value_ / rhs.value_,
                 lhs.gradient_ / rhs.value_ -
                     rhs.gradient_ * lhs.value_ / rhs.value_ / rhs.value_);
 }
