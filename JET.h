@@ -37,7 +37,10 @@ class Jet {
     this->value_ += rhs;
     return *this;
   }
-
+  Jet<N>& operator-=(const double& rhs) {
+    this->value_ -= rhs;
+    return *this;
+  }
   Jet<N> operator-() {
     Jet<N> res(-1.0 * value_, -1.0 * gradient_);
     return res;

@@ -15,13 +15,26 @@ int main() {
     std::cout << "Cameras : " << problem.cameras_.size() << std::endl;
     std::cout << "Points : " << problem.points_.size()  << std::endl;
     std::cout << "Observation : " << problem.observations_.size() << std::endl;
+    /*
     for(int i = 0; i < 9; i++) {
         std::cout << problem.cameras_[0].params[i] << std::endl;
     }
     std::cout << "Point : " << problem.points_[0] << std::endl;
-    Eigen::VectorXd e;
-    Eigen::MatrixXd j;
+    */
+    //Eigen::VectorXd e;
+    //Eigen::MatrixXd j;
     //Evaluate(problem, e, j);
+    std::unordered_map<size_t, CameraParam> cameras_;
+
+    std::map<size_t, Landmark> points_;
+    std::map<IndexPair, Observation> observations_;
+    cameras_[0] = problem.cameras_[0];
+    points_[0] = problem.points_[0];
+    observations_[{0, 0}] = problem.observations_[{0, 0}];
+    //std::swap(problem.cameras_, cameras_);
+    //std::swap(problem.points_, points_);
+    //std::swap(problem.observations_, observations_);
+    LM(problem);
     //ceres::AngleAxisRotatePoint();
     return 0;
 }

@@ -1,9 +1,10 @@
 #include "Eigen/Dense"
+#include "Eigen/Sparse"
 #include "problem.h"
 #include "../JET.h"
 
-void Evaluate(const Problem& problem, Eigen::VectorXd& error, Eigen::MatrixXd& jacobian);
-
+void Evaluate(const Problem& problem, Eigen::VectorXd& error, Eigen::SparseMatrix<double>& jacobian);
+void LM(Problem& problem);
 template<class T>
 void AngleAxisRotation(T* angle_axis, T* point, T* output) {
     const T theta2 = (angle_axis[0] * angle_axis[0]) + (angle_axis[1] * angle_axis[1]) + (angle_axis[2] * angle_axis[2]);
