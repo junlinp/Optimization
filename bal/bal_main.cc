@@ -6,7 +6,7 @@
 
 #include "ceres/rotation.h"
 #include "ceres/jet.h"
-
+#include <chrono>
 int main() {
     //const std::string path = "/Users/GEEK/Downloads/problem-1723-156502-pre.txt";
     const std::string path = "/Users/GEEK/Downloads/problem-49-7776-pre.txt";
@@ -34,7 +34,11 @@ int main() {
     //std::swap(problem.cameras_, cameras_);
     //std::swap(problem.points_, points_);
     //std::swap(problem.observations_, observations_);
+    auto start = std::chrono::high_resolution_clock::now();
     LM(problem);
+    auto end = std::chrono::high_resolution_clock::now();
+    std::cout << (end - start).count()<< " seconds." << std::endl;
+
     //ceres::AngleAxisRotatePoint();
     return 0;
 }

@@ -117,7 +117,8 @@ void ConjugateGradient(const Matrix& A, const Vector& b, Vector& x) {
 
 void ConjugateGradient(std::shared_ptr<AbstratorCoefficient> A,
                        const Eigen::VectorXd& b, Eigen::VectorXd& x) {
-  size_t max_iterator = A->Cols();
+  //size_t max_iterator = A->Cols();
+  size_t max_iterator = 128 * 8;
   size_t iterator = 0;
   x = Eigen::VectorXd::Zero(b.rows());
   Eigen::VectorXd r = b - A->Multiple(x);

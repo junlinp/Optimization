@@ -112,9 +112,9 @@ void LM(Problem& problem) {
 
   std::cout << "Evaluate Finish" << std::endl;
   std::cout << "Inital RMS : " << f.norm() << std::endl;
-  size_t max_iterator = 1024;
+  size_t max_iterator = 50;
   size_t iterator = 0;
-  //lambda = 1;
+  lambda = 1;
   while(iterator++ < max_iterator) {
     Evaluate(problem, f, jacobian);
     //std::cout << "Jacobian : " << jacobian << std::endl;
