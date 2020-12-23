@@ -142,11 +142,11 @@ void LM(Problem& problem) {
     Eigen::SparseMatrix<double> update_jacobian;
     Evaluate(update_problem, update_f, update_jacobian);
     //std::cout << "Update_f : " << update_f << std::endl;
-    double origin_error = 0.5 * f.dot(f);
-    double update_error = 0.5 * update_f.dot(update_f);
+    double origin_error = 0.5 * f.dot(f) / f.rows();
+    double update_error = 0.5 * update_f.dot(update_f) / f.rows();
     double function_decrese = origin_error - update_error;
     auto temp = f + jacobian * step;
-    double estimate_error = 0.5 * temp.dot(temp);
+    double estimate_error = 0.5 * temp.dot(temp) / temp.rows();
     double estimate_decres = origin_error - estimate_error;
 
     std::cout << "Origin Error : " << origin_error << std::endl;
@@ -165,3 +165,4 @@ void LM(Problem& problem) {
 
   std::cout << "LM RMS : " << f.norm() << std::endl;
 }
+docker run --privileged -i -t --rm --volumes-from ikev2-vpn-server -e "HOST=209.250.245.34" gaomd/ikev2-vpn-server:0.3.0 generate-mobileconfig > ikev2-vpn.mobileconfig
