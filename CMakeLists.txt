@@ -14,7 +14,7 @@ Eigen3::Eigen
 glog::glog
 )
 
-add_executable(Linear_Solver_test linear_solver_test.cpp)
+add_executable(Linear_Solver_test linear_solver_test.cpp linear_programing.cc)
 target_link_libraries(Linear_Solver_test PUBLIC
 GTest::GTest
 Eigen3::Eigen

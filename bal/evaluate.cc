@@ -165,4 +165,3 @@ void LM(Problem& problem) {
 
   std::cout << "LM RMS : " << f.norm() << std::endl;
 }
-docker run --privileged -i -t --rm --volumes-from ikev2-vpn-server -e "HOST=209.250.245.34" gaomd/ikev2-vpn-server:0.3.0 generate-mobileconfig > ikev2-vpn.mobileconfig
