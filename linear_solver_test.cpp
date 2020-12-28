@@ -2,6 +2,7 @@
 #include "Eigen/Dense"
 #include "linear_solver.h"
 #include "linear_programing.h"
+/*
 TEST(Conjugate_Gradient, PSD) {
     int n = 1024;
     Eigen::MatrixXd A = Eigen::MatrixXd::Random(n, n); 
@@ -13,7 +14,7 @@ TEST(Conjugate_Gradient, PSD) {
 
     std::cout << "Conjugate Gradient Error : " << (A*x - b).norm() << std::endl;
 }
-
+*/
 TEST(LP, Test_Case) {
     Eigen::VectorXd c(4);
     c << 1, -1, 0, 0;
