@@ -9,7 +9,7 @@ void LPSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A,
 
   x = Eigen::VectorXd::Ones(n);
   Eigen::VectorXd z = Eigen::VectorXd::Ones(n);
-  Eigen::VectorXd y = Eigen::VectorXd::Zero(m);
+  Eigen::VectorXd y = Eigen::VectorXd::Ones(m);
   double eps_feas = 1e-5;
   double eps = 1e-8;
   size_t max_iterator = 1024;
@@ -43,7 +43,7 @@ void LPSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A,
         Z, zero_m_n.transpose(), X;
     //std::cout << "H : " << H << std::endl;
     Eigen::VectorXd B(2 * n + m);
-    B << b - A * x, c - z - A.transpose() * y, t * e -X * Z * e ;
+    B << b - A * x, c - z - A.transpose() * y, mu * e -X * Z * e ;
 
     Eigen::VectorXd delta = H.fullPivLu().solve(B);
     std::cout << "delta : " << delta << std::endl;
@@ -66,30 +66,14 @@ void LPSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A,
     //if (delta_x.dot(delta_z) < n * 1e-8) {
     //    return;
     //}
-    double s = 0.999 * s_max;
-    while( s > 0) {
-        Eigen::VectorXd lhs(m + n + n);
-        Eigen::VectorXd rhs(m + n + n);
+    double s = 0.95 * s_max;
 
-        Eigen::MatrixXd Z_plus = (z + s * delta_z).asDiagonal();
-        Eigen::MatrixXd X_plus = (x + s * delta_x).asDiagonal();
-        lhs << A * (x + s * delta_x) - b,
-               c - (z + s * delta_z) - A.transpose() * (y + s * delta_y),
-               X_plus * Z_plus * e;
-        rhs << A * x - b,
-               c - z - A.transpose() * y,
-               X * Z * e;
-        if (lhs.norm() <= (1 - alpha * s) * rhs.norm()) {
-            break;
-        }
-        s *= beta;
-    }
     std::cout << "Step : " << s << std::endl;
     x = x + s * delta_x;
     y = y + s * delta_y;
     z = z + s * delta_z;
     std::cout << "Function : " << c.dot(x) << std::endl;
-
+    mu *= 0.01;
     if ((A * x - b).norm() <= eps_feas && (c - z - A.transpose() * y).norm() <= eps_feas && (x.dot(z) < eps)) {
         std::cout << "Minimum Found" << std::endl;
         break;
