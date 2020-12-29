@@ -16,6 +16,7 @@ void LPSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A,
   double mu = 10.0;
   double alpha = 0.1;
   double beta = 0.5;
+  double sigma = 0.9;
   Eigen::MatrixXd zero_m_m(m, m), zero_m_n(m, n), zero_n_n(n, n);
   for (int i = 0; i < m; i++) {
       for (int j = 0;j < m; j++) {
@@ -33,8 +34,9 @@ void LPSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A,
   }
 
   Eigen::VectorXd e = Eigen::VectorXd::Ones(n);
+  std::cout << "Iterator\t\tPrimal\t\tDual" << std::endl;
   for (int iter = 0; iter < max_iterator; iter++) {
-    double t = mu * m / x.dot(z);
+    
     Eigen::MatrixXd Z = z.asDiagonal();
     Eigen::MatrixXd X = x.asDiagonal();
     Eigen::MatrixXd H(2 * n + m, 2 * n + m);
@@ -43,10 +45,11 @@ void LPSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A,
         Z, zero_m_n.transpose(), X;
     //std::cout << "H : " << H << std::endl;
     Eigen::VectorXd B(2 * n + m);
-    B << b - A * x, c - z - A.transpose() * y, mu * e -X * Z * e ;
+    double t = (1 - sigma / std::sqrt(n)) * x.dot(z) / n;
+    B << b - A * x, c - z - A.transpose() * y, t * e -X * Z * e ;
 
     Eigen::VectorXd delta = H.fullPivLu().solve(B);
-    std::cout << "delta : " << delta << std::endl;
+    //std::cout << "delta : " << delta << std::endl;
     Eigen::VectorXd delta_x = delta.block(0, 0, n, 1);
     Eigen::VectorXd delta_y = delta.block(n, 0, m, 1);
     Eigen::VectorXd delta_z = delta.block(n + m, 0, n, 1);
@@ -62,16 +65,17 @@ void LPSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A,
       }
 
     }
-    std::cout << "s_max : " << s_max << std::endl;
+    //std::cout << "s_max : " << s_max << std::endl;
     
     double s = 0.95 * s_max;
 
-    std::cout << "Step : " << s << std::endl;
+    //std::cout << "Step : " << s << std::endl;
     x = x + s * delta_x;
     y = y + s * delta_y;
     z = z + s * delta_z;
-    std::cout << "Function : " << c.dot(x) << std::endl;
+    //std::cout << "Function : " << c.dot(x) << std::endl;
     mu *= 0.01;
+    std::cout << iter << "\t\t" << (A * x - b).norm() << "\t\t" << (c - z - A.transpose() * y).norm() << std::endl;
     if ((A * x - b).norm() <= eps_feas && (c - z - A.transpose() * y).norm() <= eps_feas && (x.dot(z) < eps)) {
         std::cout << "Minimum Found" << std::endl;
         break;
