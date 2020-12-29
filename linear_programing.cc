@@ -9,7 +9,7 @@ void LPSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A,
 
   x = Eigen::VectorXd::Ones(n);
   Eigen::VectorXd z = Eigen::VectorXd::Ones(n);
-  Eigen::VectorXd y = Eigen::VectorXd::Ones(m);
+  Eigen::VectorXd y = Eigen::VectorXd::Zero(m);
   double eps_feas = 1e-5;
   double eps = 1e-8;
   size_t max_iterator = 1024;
@@ -63,9 +63,7 @@ void LPSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A,
 
     }
     std::cout << "s_max : " << s_max << std::endl;
-    //if (delta_x.dot(delta_z) < n * 1e-8) {
-    //    return;
-    //}
+    
     double s = 0.95 * s_max;
 
     std::cout << "Step : " << s << std::endl;
