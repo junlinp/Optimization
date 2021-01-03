@@ -61,6 +61,37 @@ TEST(LP, Test_Case3) {
     // Should be -36.0
     std::cout << "Optimal Value : " << c.dot(x) << std::endl;
 }
+TEST(SDP, Test_Case) {
+    Eigen::MatrixXd C(7, 7);
+    C.setZero();
+    C(0, 2) = 1;
+
+    Eigen::MatrixXd A1(7, 7), A2(7, 7), A3(7, 7) ,A4(7, 7);
+    A1.setZero();
+    A1(0, 1) = A1(3, 3) = 1.0;
+    A2.setZero();
+    A2(0, 1) = 1.0;
+    A2(4, 4) = -1.0;
+    A3.setZero();
+    A3(1, 2) = A3(5, 5) = 1.0;
+    A4.setZero();
+    A4(1, 2) = 1.0;
+    A4(6, 6) = -1.0;
+
+    std::vector<Eigen::MatrixXd> A;
+    A.push_back(A1);
+    A.push_back(A2);
+    A.push_back(A3);
+    A.push_back(A4);
+
+    Eigen::VectorXd b(4);
+    b << -0.1, -0.2, 0.5, 0.4;
+    Eigen::MatrixXd x;
+    SymmetricSolver(C, A, b, x);
+
+    // optimal value -0.978
+    std::cout << "tr(C*X) : " << (C * x).trace() << std::endl;
+}
 int main(int argc, char** argv) {
     testing::InitGoogleTest();
     return RUN_ALL_TESTS();
