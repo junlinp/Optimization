@@ -94,8 +94,8 @@ Eigen::VectorXd vec(const Eigen::MatrixXd& A) {
   int n = A.cols();
   int m = A.rows();
   Eigen::VectorXd res(m * n);
-  for (int i = 0; i < m; i++) {
-    res.block(n * i, 0, n, 1) = A.row(i).transpose();
+  for (int i = 0; i < n; i++) {
+    res.block(m * i, 0, m, 1) = A.col(i);
   }
   return res;
 }
@@ -144,15 +144,31 @@ Eigen::MatrixXd KroneckerProduct(const Eigen::MatrixXd& A,
   }
   return res;
 }
+Eigen::MatrixXd KroneckerSum(const Eigen::MatrixXd& A,const Eigen::MatrixXd& B) {
+    return KroneckerProduct(A, B) + KroneckerProduct(B, A);
+}
 
 Eigen::MatrixXd mat(const Eigen::VectorXd& vec) {
     size_t n = static_cast<size_t>(std::sqrtf(vec.rows()) + 0.5);
     Eigen::MatrixXd res(n, n);
 
     for (int i = 0; i < n; i++) {
-        res.row(i) = vec.block(n *i, 0, n, 1).transpose();
+        res.col(i) = vec.block(n * i, 0, n, 1);
     }
     return res;
+}
+double ComputeMinimumEigenValue(const Eigen::MatrixXd& Matrix) {
+    Eigen::EigenSolver<Eigen::MatrixXd> eigen(Matrix);
+    //std::cout << "singular : " << singular << std::endl;
+    auto eigen_value = eigen.eigenvalues();
+    return  eigen_value(eigen_value.rows() - 1).real();
+}
+
+double ComputeLargestSingularValue(const Eigen::MatrixXd& Matrix) {
+    Eigen::BDCSVD<Eigen::MatrixXd> svd;
+    svd.compute(Matrix);
+    auto singular = svd.singularValues();
+    return  singular(0); 
 }
 void SymmetricSolver(const Eigen::MatrixXd C,
                      const std::vector<Eigen::MatrixXd>& A,
@@ -170,44 +186,68 @@ void SymmetricSolver(const Eigen::MatrixXd C,
   x = I;
   Eigen::MatrixXd z = I;
   Eigen::VectorXd y = Eigen::VectorXd::Zero(m);
+  Eigen::MatrixXd zero_m_m(m, m), zero_m_n(m, n * n), zero_n_n(n * n , n * n);
+  for (int i = 0; i < m; i++) {
+    for (int j = 0; j < m; j++) {
+      zero_m_m(i, j) = 0.0;
+    }
+    for (int k = 0; k < n * n; k++) {
+      zero_m_n(i, k) = 0.0;
+    }
+  }
 
-  const size_t max_iterator = 1024;
+  for (int i = 0; i < n * n; i++) {
+    for (int j = 0; j < n * n; j++) {
+      zero_n_n(i, j) = 0.0;
+    }
+  }
+  const size_t max_iterator = 16;
   for (size_t iterator = 0; iterator < max_iterator; iterator++) {
     Eigen::MatrixXd X = x;
     Eigen::MatrixXd Z = z;
     x = X;
     Eigen::MatrixXd Jacobian(m + 2 * n * n, m + 2 * n * n);
     Eigen::VectorXd g(m + 2 * n * n);
-    Jacobian << A_, Eigen::MatrixXd::Zero(m, m),
-        Eigen::MatrixXd::Zero(m, n * n), Eigen::MatrixXd::Zero(n * n, n * n),
-        A_.transpose(), Eigen::MatrixXd::Identity(n * n, n * n),
+    Jacobian << A_, zero_m_m, zero_m_n,
+     zero_n_n, A_.transpose(),
+        Eigen::MatrixXd::Identity(n * n, n * n),
         KroneckerProduct(Z, I) + KroneckerProduct(I, Z),
-        Eigen::MatrixXd::Zero(n * n, m),
+        zero_m_n.transpose(),
         KroneckerProduct(X, I) + KroneckerProduct(I, X);
 
     g << b - A_ * vec(X), vec(C) - vec(Z) - A_.transpose() * y,
-        vec(2 * mu * I - X * Z + Z * X);
+        vec(2 * mu * I - X * Z - Z * X);
 
     Eigen::VectorXd delta = Jacobian.fullPivLu().solve(g);
     Eigen::VectorXd delta_x = delta.block(0, 0, n * n, 1);
     Eigen::VectorXd delta_y = delta.block(n * n, 0, m, 1);
     Eigen::VectorXd delta_z = delta.block(n * n + m, 0, n * n, 1);
 
-    double s = 1.0;
-    double delta_x_sum = delta_x.sum();
-    double delta_z_sum = delta_z.sum();
-    if (delta_x_sum < 0) {
-      s = std::min(s, vec(X).sum() / -delta_x_sum);
+    double s_a = 1.0;
+    while(ComputeMinimumEigenValue(x + s_a * mat(delta_x)) < 1e-6) {
+        s_a *= 0.9;
     }
-
-    if (delta_z_sum < 0) {
-      s = std::min(s, vec(Z).sum() / -delta_z_sum);
+    double s_b = 1.0;
+    while(ComputeMinimumEigenValue(z + s_b * mat(delta_z)) < 1e-6) {
+        s_b *= 0.9;
     }
-    // std::cout << delta << std::endl;
-    x = x + s * mat(delta_x);
-    y = y + s * delta_y;
-    z = z + s * mat(delta_z);
+    std::cout << "Largest X : " << s_a << std::endl;
+    std::cout << "Largest Z : " << s_b << std::endl;
+    //std::cout << "x + s * mat(delta_x) : " << ComputeMinimumSingularValue(x + s * mat(delta_x)) << std::endl;
 
+    std::cout << s_a  << std::endl;
+    std::cout << s_b  << std::endl;
+    x = x + s_a * mat(delta_x);
+    y = y + s_b * delta_y;
+    z = z + s_b * mat(delta_z);
+    Eigen::BDCSVD<Eigen::MatrixXd> svd;
+    svd.compute(x);
+    std::cout << "singular : " << svd.singularValues() << std::endl;
+    std::cout << "X : " << x << std::endl;
+    std::cout << iterator << "\t\t" << (A_ * vec(x) - b).norm() << "\t\t"
+              << (vec(C) - vec(Z) - A_.transpose() * y).norm()  << "\t\t"
+              << (X*Z).norm()
+              << std::endl;
     mu *= 0.0001;
   }
 }
