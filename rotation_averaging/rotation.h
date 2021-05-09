@@ -14,13 +14,25 @@ template<class T>
 void angle_axis_to_quaternion(const T* angle_axis, T* quaternion) {
   T norm = angle_axis[0] * angle_axis[0] + angle_axis[1] * angle_axis[1] +
            angle_axis[2] * angle_axis[2];
-  norm = std::sqrt(norm);
 
-  quaternion[0] = std::cos(norm / 2);
-  T sine_norm_2 = std::sin(norm / 2);
-  quaternion[1] = sine_norm_2 * angle_axis[0] / norm;
-  quaternion[2] = sine_norm_2 * angle_axis[1] / norm;
-  quaternion[3] = sine_norm_2 * angle_axis[2] / norm;
+
+  if (norm > T(0.0)) {
+    norm = std::sqrt(norm);
+
+    quaternion[0] = std::cos(norm / 2);
+    T sine_norm_2 = std::sin(norm / 2);
+    quaternion[1] = sine_norm_2 * angle_axis[0] / norm;
+    quaternion[2] = sine_norm_2 * angle_axis[1] / norm;
+    quaternion[3] = sine_norm_2 * angle_axis[2] / norm;
+
+  } else {
+
+      quaternion[0] = T(1.0);
+      T k = T(0.5);
+      quaternion[1] = angle_axis[0] * k;
+      quaternion[2] = angle_axis[1] * k;
+      quaternion[3] = angle_axis[2] * k;
+  }
 }
 
 #endif  //ROTATION_AVERAGING_ROTATION_H_
