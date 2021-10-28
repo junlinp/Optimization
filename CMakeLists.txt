@@ -6,6 +6,7 @@ find_package(GTest REQUIRED)
 find_package(GLOG REQUIRED)
 set(CMAKE_CXX_STANDARD 14)
 add_library(mmio mmio.c mmio.h)
+
 add_executable(${PROJECT_NAME}_test optimization_test.cpp)
 
 target_link_libraries(${PROJECT_NAME}_test PUBLIC
@@ -21,6 +22,12 @@ Eigen3::Eigen
 glog::glog
 )
 
+#add_executable(Auto_Diff_Test auto_diff_test.cc)
+#target_link_libraries(Auto_Diff_Test PUBLIC
+#GTest::GTest
+#Eigen3::Eigen
+#)
+
 add_compile_options(-Wall -Wextra -pedantic -Werror)
 
 add_executable(Sparse_Matrix_Test sparse_matrix_test.cpp )
@@ -32,4 +39,4 @@ add_executable(IterativeMethodTest itertive_method_test.cpp)
 target_link_libraries(IterativeMethodTest GTest::GTest)
 
 
-add_subdirectory(bal)
+#add_subdirectory(bal)
