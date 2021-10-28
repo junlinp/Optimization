@@ -13,12 +13,10 @@ TEST(JET, Plus) {
   auto gradient = c.Gradient();
   EXPECT_EQ(gradient(0), 1.0);
   EXPECT_EQ(gradient(1), 1.0);
-  /*
   JETD<2> d = a * a + b * b;
   EXPECT_EQ(d.value(), 5.0);
   EXPECT_EQ(d.Gradient()(0), 2.0);
   EXPECT_EQ(d.Gradient()(1), 4.0);
-  */
 }
 /*
 
