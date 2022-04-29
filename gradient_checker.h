@@ -23,6 +23,7 @@ bool GradientChecker(AutoDiffFunction<Functor, residual_num, parameter_num> func
                 std::cerr << "where the auto_gradient is " << auto_gradient << std::endl;
                 std::cerr << " the mathematic gradient is : " << computed_gradient << std::endl;
                 std::cerr << "d(" << residual_index << ")/(" << parameter_index << ")" << std::endl;
+                std::cerr << "x0 is : " << x0 << std::endl;
                 return false;
             }
         }

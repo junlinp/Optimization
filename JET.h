@@ -10,16 +10,15 @@ template <class Derive, class Data_Type, int Dimension>
 class Expression {
  public:
   using DATA_TYPE = Data_Type;
-  static const int DUAL_NUM_SIZE = Dimension;
+  static const int DUAL_NUMBER_SIZE = Dimension;
+  using GRADIENT_TYPE = Eigen::Matrix<DATA_TYPE, DUAL_NUMBER_SIZE, 1>;
 
-  DATA_TYPE value() const {
-    return static_cast<const Derive*>(this)->value_imp();
-  }
-  Eigen::Matrix<DATA_TYPE, DUAL_NUM_SIZE, 1> Gradient() const {
-    return static_cast<const Derive*>(this)->Gradient_imp();
-  }
+  DATA_TYPE value() const { return impl().value_imp(); }
+  GRADIENT_TYPE Gradient() const { return impl().Gradient_imp(); }
 
-  friend Derive;
+ private:
+  Derive& impl() { return *static_cast<Derive*>(this); }
+  const Derive& impl() const { return *static_cast<const Derive*>(this); }
 };
 
 // BASIC_TYPE should be float or double
@@ -29,9 +28,11 @@ class Jet : public Expression<Jet<BASIC_TYPE, N>, BASIC_TYPE, N> {
  public:
   using DATA_TYPE = BASIC_TYPE;
   static const int DUAL_NUMBER_SIZE = N;
+  using GRADIENT_TYPE = Eigen::Matrix<DATA_TYPE, DUAL_NUMBER_SIZE, 1>;
+
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-  Jet(double value = 0.0) : value_(value), gradient_() {
+  Jet(BASIC_TYPE value = 0.0) : value_(value), gradient_() {
     for (int i = 0; i < N; i++) {
       gradient_(i) = 0.0;
     }
@@ -53,16 +54,16 @@ class Jet : public Expression<Jet<BASIC_TYPE, N>, BASIC_TYPE, N> {
   }
 
   template <class EXPR>
-  Jet(const EXPR& expr) : value_(expr.value()), gradient_(expr.Gradient()) {}
+  Jet(const EXPR& expr) : value_{expr.value()}, gradient_(expr.Gradient()) {}
 
   void setGradient(size_t index, BASIC_TYPE value) { gradient_(index) = value; }
   DATA_TYPE value_imp() const { return value_; }
 
-  Eigen::Matrix<double, N, 1> Gradient_imp() const { return gradient_; }
+  GRADIENT_TYPE Gradient_imp() const { return gradient_; }
 
  private:
   BASIC_TYPE value_;
-  Eigen::Matrix<BASIC_TYPE, N, 1> gradient_;
+  GRADIENT_TYPE gradient_;
 };
 
 template <int N>
@@ -71,9 +72,9 @@ using JETF = Jet<float, N>;
 template <int N>
 using JETD = Jet<double, N>;
 
-template <class OPRAND, class Derive>
+template <class OPRAND, class OperatorImp>
 class UnaryOp
-    : public Expression<UnaryOp<OPRAND, Derive>, typename OPRAND::DATA_TYPE,
+    : public Expression<UnaryOp<OPRAND, OperatorImp>, typename OPRAND::DATA_TYPE,
                         OPRAND::DUAL_NUMBER_SIZE> {
  public:
   using DATA_TYPE = typename OPRAND::DATA_TYPE;
@@ -81,27 +82,23 @@ class UnaryOp
   UnaryOp(const OPRAND& oprand) : oprand_(oprand) {}
 
   DATA_TYPE value_imp() const {
-    return static_cast<const Derive*>(this)->value_unary_op(oprand_);
+    return OperatorImp::value_unary_op(oprand_);
   }
   Eigen::Matrix<DATA_TYPE, DUAL_NUMBER_SIZE, 1> Gradient_imp() {
-    return static_cast<const Derive*>(this)->Gradient_unary_op(oprand_);
+    return OperatorImp::Gradient_unary_op(oprand_);
   }
 
  private:
   const OPRAND& oprand_;
 };
 
-template <class EXPR>
-class MinusOp : public UnaryOp<EXPR, MinusOp<EXPR>> {
+class MinusUnaryOp {
  public:
-  using DATA_TYPE = typename EXPR::DATA_TYPE;
-  static const int DUAL_NUMBER_SIZE = EXPR::DUAL_NUMBER_SIZE;
-
-  MinusOp(const EXPR& expr) : UnaryOp<EXPR, MinusOp<EXPR>>(expr) {}
-
-  DATA_TYPE value_unary_op(const EXPR& expr) const { return -expr.value(); }
-  Eigen::Matrix<DATA_TYPE, DUAL_NUMBER_SIZE, 1> Gradient_unary_op(
-      const EXPR& expr) const {
+ template<typename EXPR>
+  static auto value_unary_op(const EXPR& expr) { return -expr.value(); }
+  template<typename EXPR>
+  static auto Gradient_unary_op(
+      const EXPR& expr) {
     return -expr.Gradient();
   }
 };
@@ -120,9 +117,9 @@ struct Binary_trait {
   const static int DUAL_NUMBER_SIZE = LHS_OPRAND::DUAL_NUMBER_SIZE;
 };
 
-template <class LHS_OPRAND, class RHS_OPRAND, class Derive>
+template <class LHS_OPRAND, class RHS_OPRAND, class OperatorImp>
 class BinaryOp : public Expression<
-                     BinaryOp<LHS_OPRAND, RHS_OPRAND, Derive>,
+                     BinaryOp<LHS_OPRAND, RHS_OPRAND, OperatorImp>,
                      typename Binary_trait<LHS_OPRAND, RHS_OPRAND>::DATA_TYPE,
                      Binary_trait<LHS_OPRAND, RHS_OPRAND>::DUAL_NUMBER_SIZE> {
  public:
@@ -131,13 +128,13 @@ class BinaryOp : public Expression<
       Binary_trait<LHS_OPRAND, RHS_OPRAND>::DUAL_NUMBER_SIZE;
   BinaryOp(const LHS_OPRAND& lhs, const RHS_OPRAND& rhs)
       : lhs_oprand_(lhs), rhs_oprand_(rhs) {}
+
   DATA_TYPE value_imp() const {
-    return static_cast<const Derive*>(this)->value_binary_op(lhs_oprand_,
-                                                             rhs_oprand_);
+    return OperatorImp::value_binary_op(lhs_oprand_, rhs_oprand_);
   }
+
   Eigen::Matrix<double, DUAL_NUM_SIZE, 1> Gradient_imp() const {
-    return static_cast<const Derive*>(this)->Gradient_binary_op(lhs_oprand_,
-                                                                rhs_oprand_);
+    return OperatorImp::Gradient_binary_op(lhs_oprand_, rhs_oprand_);
   }
 
  private:
@@ -145,62 +142,93 @@ class BinaryOp : public Expression<
   const RHS_OPRAND& rhs_oprand_;
 };
 
-template <class LHS_OPRAND, class RHS_OPRAND>
-class PlusOp
-    : public BinaryOp<LHS_OPRAND, RHS_OPRAND, PlusOp<LHS_OPRAND, RHS_OPRAND>> {
+class PlusOp {
  public:
-  using DATA_TYPE = typename Binary_trait<LHS_OPRAND, RHS_OPRAND>::DATA_TYPE;
-  static const int DUAL_NUMBER_SIZE =
-      Binary_trait<LHS_OPRAND, RHS_OPRAND>::DUAL_NUMBER_SIZE;
-  using BASE_CLASS =
-      BinaryOp<LHS_OPRAND, RHS_OPRAND, PlusOp<LHS_OPRAND, RHS_OPRAND>>;
-
-  PlusOp(const LHS_OPRAND& lhs_oprand, const RHS_OPRAND& rhs_oprand)
-      : BinaryOp<LHS_OPRAND, RHS_OPRAND, PlusOp<LHS_OPRAND, RHS_OPRAND>>(
-            lhs_oprand, rhs_oprand) {}
-
-  DATA_TYPE value_binary_op(const LHS_OPRAND& lhs,
-                            const RHS_OPRAND& rhs) const {
+ template<typename LHS_OPRAND, typename RHS_OPRAND>
+   static auto value_binary_op(const LHS_OPRAND& lhs,
+                            const RHS_OPRAND& rhs) {
     return lhs.value() + rhs.value();
   }
-  Eigen::Matrix<DATA_TYPE, DUAL_NUMBER_SIZE, 1> Gradient_binary_op(
-      const LHS_OPRAND& lhs, const RHS_OPRAND& rhs) const {
-    return lhs.Gradient() + rhs.Gradient();
+
+ template<typename LHS_OPRAND, typename RHS_OPRAND>
+  static auto  Gradient_binary_op(
+      const LHS_OPRAND& lhs, const RHS_OPRAND& rhs) {
+    return (lhs.Gradient() + rhs.Gradient()).eval();
   }
 };
 
 // SFINAE
-template <class LHS, class RHS, class U = typename LHS::DATA_TYPE, class V = typename RHS::DATA_TYPE>
-PlusOp<LHS, RHS> operator+(const LHS& lhs, const RHS& rhs) {
-  return PlusOp<LHS, RHS>(lhs, rhs);
+template <class LHS, class RHS, class U = typename LHS::DATA_TYPE,
+          class V = typename RHS::DATA_TYPE>
+auto operator+(const LHS& lhs, const RHS& rhs) {
+  return BinaryOp<LHS, RHS, PlusOp>(lhs, rhs);
+}
+class MinusBinaryOp {
+ public:
+template <class LHS_OPRAND, class RHS_OPRAND>
+  static auto value_binary_op(const LHS_OPRAND& lhs,
+                            const RHS_OPRAND& rhs) {
+    return lhs.value() - rhs.value();
+  }
+template <class LHS_OPRAND, class RHS_OPRAND>
+static auto  Gradient_binary_op(
+      const LHS_OPRAND& lhs, const RHS_OPRAND& rhs) {
+    return (lhs.Gradient() - rhs.Gradient()).eval();
+  }
+};
+template <class LHS, class RHS, class U = typename LHS::DATA_TYPE,
+          class V = typename RHS::DATA_TYPE>
+auto operator-(const LHS& lhs, const RHS& rhs) {
+  return BinaryOp<LHS, RHS, MinusBinaryOp>(lhs, rhs);
 }
 
-template <class LHS_OPRAND, class RHS_OPRAND>
-class MultipleOp : public BinaryOp<LHS_OPRAND, RHS_OPRAND,
-                                   MultipleOp<LHS_OPRAND, RHS_OPRAND>> {
+class MultipleOp {
  public:
-  using DATA_TYPE = typename Binary_trait<LHS_OPRAND, RHS_OPRAND>::DATA_TYPE;
-  static const int DUAL_NUMBER_SIZE =
-      Binary_trait<LHS_OPRAND, RHS_OPRAND>::DUAL_NUMBER_SIZE;
-  using BASE_CLASS =
-      BinaryOp<LHS_OPRAND, RHS_OPRAND, MultipleOp<LHS_OPRAND, RHS_OPRAND>>;
-  MultipleOp(const LHS_OPRAND& lhs, const RHS_OPRAND& rhs)
-      : BASE_CLASS(lhs, rhs) {}
-
-  DATA_TYPE value_binary_op(const LHS_OPRAND& lhs,
-                            const RHS_OPRAND& rhs) const {
+template <class LHS_OPRAND, class RHS_OPRAND>
+  static auto value_binary_op(const LHS_OPRAND& lhs,
+                            const RHS_OPRAND& rhs) {
     return lhs.value() * rhs.value();
   }
-  Eigen::Matrix<DATA_TYPE, DUAL_NUMBER_SIZE, 1> Gradient_binary_op(
-      const LHS_OPRAND& lhs, const RHS_OPRAND& rhs) const {
-    return rhs.value() * lhs.Gradient() + lhs.value() * rhs.Gradient();
+template <class LHS_OPRAND, class RHS_OPRAND>
+  static auto Gradient_binary_op(
+      const LHS_OPRAND& lhs, const RHS_OPRAND& rhs) {
+    return (rhs.value() * lhs.Gradient() + lhs.value() * rhs.Gradient()).eval();
   }
 };
 
-template<class LHS, class RHS, class U = typename LHS::DATA_TYPE, class V = typename RHS::DATA_TYPE>
-MultipleOp<LHS, RHS> operator*(const LHS& lhs, const RHS& rhs) {
-  return MultipleOp<LHS, RHS>(lhs, rhs);
+template <class LHS, class RHS, class U = typename LHS::DATA_TYPE,
+          class V = typename RHS::DATA_TYPE>
+auto operator*(const LHS& lhs, const RHS& rhs) {
+  return BinaryOp<LHS, RHS, MultipleOp>(lhs, rhs);
 }
+
+class DivisionOp {
+                 
+ public:
+
+template <class LHS_OPRAND, class RHS_OPRAND>
+  static auto value_binary_op(const LHS_OPRAND& lhs,
+                            const RHS_OPRAND& rhs) {
+    return lhs.value() / rhs.value();
+  }
+
+template <class LHS_OPRAND, class RHS_OPRAND>
+  static auto Gradient_binary_op(
+      const LHS_OPRAND& lhs, const RHS_OPRAND& rhs) {
+    // f / g = f' * g + g' * f / g / g
+    auto&& l = lhs.value();
+    auto&& r = rhs.value();
+    auto denominator = r * r;
+    return (r * lhs.Gradient() + l * rhs.Gradient()) / denominator;
+  }
+};
+
+/*
+template <class LHS, class RHS>
+std::enable_if_t<std::is_same<typename LHS::DATA_TYPE, typename RHS::DATA_TYPE>::value, DivisionOp<LHS, RHS>> operator/(const LHS& lhs, const RHS& rhs) {
+  return DivisionOp<LHS, RHS>(lhs, rhs);
+}
+*/
 
 template <class Functor, int residual_num, int parameter_num>
 class AutoDiffFunction {
@@ -231,7 +259,8 @@ class AutoDiffFunction {
     }
     std::vector<JETD<parameter_num>> residual_wrap(residual_num);
 
-    functor_(&x_wrap[0], &residual_wrap[0]);
+    functor_(x_wrap.data(), residual_wrap.data());
+
     Eigen::Matrix<double, residual_num, parameter_num> res;
     for (int i = 0; i < residual_num; i++) {
       Eigen::Matrix<double, parameter_num, 1> gradient =
