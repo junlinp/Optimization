@@ -29,6 +29,21 @@ TEST(LP, Test_Case) {
     std::cout << "A * x - b : " << b - A*x << std::endl;
 }
 
+
+TEST(LP2, Test_Case) {
+    Eigen::VectorXd c(4);
+    c << 1, -1, 0, 0;
+    Eigen::MatrixXd A(2, 4);
+    A << 10, -7, -1, 0,
+         1, 0.5, 0, 1;
+    Eigen::VectorXd b(2);
+    b << 5.0, 3.0;
+    Eigen::VectorXd x(4);
+    LPSolver2(c, A, b, x);
+    std::cout << "x : " << x << std::endl;
+    std::cout << "A * x - b : " << b - A*x << std::endl;
+}
+
 TEST(LP, Test_Case2) {
     Eigen::VectorXd c(3);
     c << 2.0, 2.0, 0.0;
