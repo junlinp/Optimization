@@ -251,87 +251,15 @@ void SymmetricSolver(const Eigen::MatrixXd C,
   }
 }
 
-Eigen::MatrixXd L_Operator(Eigen::VectorXd x) {
-  return x.asDiagonal();
-}
 
-Eigen::MatrixXd P_Operator(const Eigen::VectorXd x) {
-  return 2 * L_Operator(x) * L_Operator(x) - L_Operator(L_Operator(x) * x);
-}
-
-Eigen::VectorXd ComputeW(const Eigen::VectorXd& x, const Eigen::VectorXd& z) {
-  Eigen::MatrixXd P_x_sqrt = P_Operator(x.array().sqrt());
-  Eigen::VectorXd temp = P_x_sqrt * z;
-  temp = (temp.array().inverse().array().sqrt());
-  return P_x_sqrt * temp;
-}
-
-void ComputeAndUpdate(double mu, const Eigen::VectorXd& u,
-                      const Eigen::VectorXd& c, const Eigen::MatrixXd& A,
-                      const Eigen::VectorXd& b, Eigen::VectorXd& x,
-                      Eigen::VectorXd& y, Eigen::VectorXd& z) {
-  // u = w^-0.5
-  Eigen::MatrixXd Pu = P_Operator(u);
-  Eigen::MatrixXd Pu_inv = Pu.inverse();
-
-  Eigen::VectorXd v = Pu * x / std::sqrt(mu);
-  Eigen::VectorXd g(2 * x.rows() + y.rows());
-  g.block(0, 0, y.rows(), 1) = b - A * x;
-  g.block(y.rows(), 0, x.rows(), 1) = c - A.transpose() * y - z;
-  g.block(y.rows() + x.rows(), 0, x.rows(), 1) = (v.array().inverse()).matrix() - v;
-
-  Eigen::VectorXd identity(x.rows());
-  identity.setOnes();
-  
-  Eigen::MatrixXd jacobian(2 * x.rows() + y.rows(), 2 * x.rows() + y.rows());
-  jacobian.setZero();
-  //             |  0    -A^T    -I |
-  //  jacobian = |  A      0      0 |
-  //             |P(u^-1)sP(u)  0  P(u)xP(u^-1)|
-  // 
-  jacobian.block(0, 0, y.rows(), x.rows()) = std::sqrt(mu) * A * Pu_inv;
-
-  jacobian.block(y.rows(), x.rows(), z.rows(), y.rows()) = (A * Pu_inv).transpose() / std::sqrt(mu);
-  jacobian.block(y.rows(), x.rows() + y.rows(), z.rows(), z.rows()) = Eigen::MatrixXd::Identity(z.rows(), z.rows());
-
-  jacobian.block(y.rows() + z.rows(), 0, x.rows(), x.rows()) = Eigen::MatrixXd::Identity(x.rows(), x.rows());
-  jacobian.block(y.rows() + z.rows(), y.rows() + z.rows(), z.rows(), z.rows()) = Eigen::MatrixXd::Identity(x.rows(), x.rows());
-  Eigen::VectorXd delta = jacobian.fullPivHouseholderQr().solve(g);
-
-  std::cout << "Newton System Residual : " << (jacobian * delta + g).norm() << std::endl;
-  x += delta.block(0, 0, x.rows(), 1);
-  y += delta.block(x.rows(), 0, y.rows(), 1);
-  z += delta.block(x.rows() + y.rows(), 0, z.rows(), 1);
-}
 
 
 void LPSolver2(const Eigen::VectorXd& c, const Eigen::MatrixXd& A,
                const Eigen::VectorXd& b, Eigen::VectorXd& x) {
-  double epsilon = 1e-6;
-  double tau = 1.414 * 0.5;
-  double theta = tau * 0.5;
-  // start point x, z equal to zero;
-  Eigen::VectorXd x0(c.rows()), z0(c.rows());
-  Eigen::VectorXd y0(A.rows());
+      OrthantSpace X(x);
+      FullNTStepIMP(c, A, b, X);
 
-  double mu = 1024;
-  Eigen::VectorXd y = y0, z = z0;
-  x = x0;
-  int epoch = 0;
-  while (mu > epsilon) {
-    // w = P(x)^0.5( P(x)^0.5 * s)^-0.5
-    Eigen::VectorXd w = ComputeW(x, z);
-    // mu = (1 - theta) * mu;
-
-    mu = (1 - theta) * mu;
-    // solve Newton System to get delta_x, delta_y, delta_z
-    // for u = w^-0.5
-    // update x, y, z := x + delta_x, y + delta_y, z + delta_z
-    Eigen::VectorXd u = w.array().inverse().sqrt();
-    ComputeAndUpdate(mu, u, c, A, b, x, y, z);
-    epoch++;
-    std::cout << "Epoch [" << epoch << "] dual gap :  " << L_Operator(x) * z << std::endl;
-  }
+      x = X.ToLinearVector();
 }
 
 void SymmetricSolver2(const Eigen::MatrixXd C,

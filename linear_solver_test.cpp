@@ -43,7 +43,6 @@ TEST(LP2, Test_Case) {
     std::cout << "x : " << x << std::endl;
     std::cout << "A * x - b : " << b - A*x << std::endl;
 }
-
 TEST(LP, Test_Case2) {
     Eigen::VectorXd c(3);
     c << 2.0, 2.0, 0.0;
@@ -51,13 +50,32 @@ TEST(LP, Test_Case2) {
     A << 1.0, 1.0, -1.0;
     Eigen::VectorXd b(1);
     b << 3;
-    Eigen::VectorXd x;
+    Eigen::VectorXd x(3);
+
     LPSolver(c, A, b, x);
     // Should be (1.5, 1.5, 0.0)
     std::cout << "x : " << x << std::endl;
     // Should be 6.0
     std::cout << "Optimal Value : " << c.dot(x) << std::endl;
 }
+
+TEST(LP2, Test_Case2) {
+    Eigen::VectorXd c(3);
+    c << 2.0, 2.0, 0.0;
+    Eigen::MatrixXd A(1, 3);
+    A << 1.0, 1.0, -1.0;
+    Eigen::VectorXd b(1);
+    b << 3;
+    Eigen::VectorXd x(3);
+    LPSolver2(c, A, b, x);
+    // X Should be (1.5, 1.5, 0.0)
+    // Optimized Value Should be 6.0
+    EXPECT_NEAR(x(0), 1.5, 1e-6);
+    EXPECT_NEAR(x(1), 1.5, 1e-6);
+    EXPECT_NEAR(x(2), 0.0, 1e-6);
+    EXPECT_NEAR(c.dot(x), 6.0, 1e-6);
+}
+/*
 TEST(LP, Test_Case3) {
     Eigen::VectorXd c(5);
     c << -3.0, -5.0, 0.0, 0.0, 0.0;
@@ -124,6 +142,7 @@ TEST(SDP, Test_Case) {
     std::cout << "X : " << x << std::endl;
     std::cout << "det(X) : " << x.determinant() << std::endl;
 }
+*/
 int main(int argc, char** argv) {
     testing::InitGoogleTest();
     return RUN_ALL_TESTS();

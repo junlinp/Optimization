@@ -4,7 +4,7 @@ project(Optimization)
 find_package(Eigen3 REQUIRED)
 find_package(GTest REQUIRED)
 find_package(GLOG REQUIRED)
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 20)
 add_compile_options(-mavx -mavx2)
 add_library(mmio mmio.c mmio.h)
 
