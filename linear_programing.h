@@ -154,10 +154,18 @@ auto FeasibleStep(const Vector& C, const Matrix& A, const Vector& b0,
 
   // Using Schur Complement
   //  a * b * dy = prim + a * (dual - comp)
+  //  since a * b = A * P(w) * A^T
+  //  prim + a * (dual - comp) = theta * delta * (rb - A * P(w) * rc) - mu * (1 - theta) * A * P(w) * X^(-1) + A * P(w) * S
+  //  it is better to solve this linear equation with Cholesky Factorization
+  //
   //  dx = b * dy - dual + comp
   //   ds = comp - dx
+  //Vector dy = (a * b).fullPivHouseholderQr().solve(prim + a * (dual - comp));
+  Matrix Pw = w.P();
+  Vector residual = theta *delta * (rb + A * Pw * rc) - mu * (1 - theta) * A * Pw * X.Inverse().ToLinearVector() + A * Pw * S.ToLinearVector();
+  //Vector dy = (A * w.P() * A.transpose()).ldlt().solve(prim + a * (dual - comp));
+  Vector dy = (A * w.P() * A.transpose()).ldlt().solve(residual);
 
-  Vector dy = (a * b).fullPivHouseholderQr().solve(prim + a * (dual - comp));
   Vector dx = b * dy - dual + comp;
   Vector ds = dual - b * dy;
 
