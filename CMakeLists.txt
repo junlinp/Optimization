@@ -14,8 +14,14 @@ GTest::GTest
 Eigen3::Eigen
 glog::glog
 )
+set(HAMMING_DATASET_PATH "${CMAKE_SOURCE_DIR}/data/Hamming")
+configure_file(LinearProgramingConfig.h.in LinearProgramingConfig.h)
 
 add_executable(Linear_Solver_test linear_solver_test.cpp linear_programing.cc)
+target_include_directories(Linear_Solver_test PUBLIC
+                           "${PROJECT_BINARY_DIR}"
+                           )
+                           
 target_link_libraries(Linear_Solver_test PUBLIC
 GTest::GTest
 Eigen3::Eigen

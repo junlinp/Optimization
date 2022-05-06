@@ -256,10 +256,7 @@ void SymmetricSolver(const Eigen::MatrixXd C,
 
 void LPSolver2(const Eigen::VectorXd& c, const Eigen::MatrixXd& A,
                const Eigen::VectorXd& b, Eigen::VectorXd& x) {
-      OrthantSpace X(x);
-      FullNTStepIMP(c, A, b, X);
-
-      x = X.ToLinearVector();
+      FullNTStepIMP(c, A, b, x, OrthantSpace{});
 }
 
 void SymmetricSolver2(const Eigen::MatrixXd C,
@@ -274,4 +271,22 @@ void SymmetricSolver2(const Eigen::MatrixXd C,
   // Using KKT Conditions
   // we have
   //
+}
+
+
+void RobustLPSolver(const Eigen::VectorXd& c,
+                    const std::vector<Eigen::VectorXd>& A,
+                    const std::vector<double>& b,
+                    const std::vector<Eigen::VectorXd>& E,
+                    const std::vector<double>& F, Eigen::VectorXd& x) {
+ Eigen::MatrixXd A0(A.size(), A.at(0).rows());
+ Eigen::VectorXd b0(b.size());
+                    }
+
+
+
+void SDPSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A, const Eigen::VectorXd& b, Eigen::MatrixXd& X) {
+  Eigen::VectorXd x(c.rows() * c.rows());
+  FullNTStepIMP(c, A, b, x, SemiDefineSpace{});
+  X = SemiDefineSpace::Mat(x);
 }
