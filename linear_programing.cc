@@ -286,7 +286,9 @@ void RobustLPSolver(const Eigen::VectorXd& c,
 
 
 void SDPSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A, const Eigen::VectorXd& b, Eigen::MatrixXd& X) {
-  Eigen::VectorXd x(c.rows() * c.rows());
+  Eigen::VectorXd x(X.rows() * X.cols());
+  std::cout << "FullNTStepIMP Solver" << std::endl;
   FullNTStepIMP(c, A, b, x, SemiDefineSpace{});
+  std::cout << "FullNTStepIMP Solver Finish" << std::endl;
   X = SemiDefineSpace::Mat(x);
 }

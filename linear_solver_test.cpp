@@ -134,9 +134,8 @@ auto Hamming_Load_Data(const std::string& data_set) {
     std::string direct = HAMMING_DATASET_PATH + std::string("/") + data_set;
     std::vector<double> c_coeff;
     std::ifstream ifs(direct + "/c.txt");
-    size_t index;
     double value;
-    while(ifs >> index >> value) {
+    while(ifs >> value) {
         c_coeff.push_back(value);
     }
     ifs.close();
@@ -149,7 +148,7 @@ auto Hamming_Load_Data(const std::string& data_set) {
 
     std::vector<double> b_coeff;
     ifs.open(direct + "/b.txt");
-    while(ifs >> index >> value) {
+    while(ifs >> value) {
         b_coeff.push_back(value);
     }
     size_t m = b_coeff.size();
@@ -158,31 +157,50 @@ auto Hamming_Load_Data(const std::string& data_set) {
         b(i) = b_coeff[i];
     }
     ifs.close();
-    Eigen::MatrixXd A(m, n);
-    A.setZero();
+    using T = Eigen::Triplet<double>;
+    std::vector<T> triple;
     ifs.open(direct + "/A_sparse.txt");
     size_t row, col;
-    while(ifs >> row >> col >> value) {
-        A(row, col) = value;
+    char ch;
+    while(ifs >> row >> ch >> col >> ch >> value) {
+        triple.push_back(T(row - 1, col - 1, value));
     }
     ifs.close();
+    Eigen::SparseMatrix<double> A(m, n);
+    A.setFromTriplets(triple.begin(), triple.end());
 
-    return std::tuple<Eigen::VectorXd, Eigen::MatrixXd, Eigen::VectorXd>(c, A, b);
+    return std::tuple<Eigen::VectorXd, Eigen::SparseMatrix<double>, Eigen::VectorXd>(c, A, b);
 }
+TEST(SDP, Maximal_Complementarity_2) {
+    size_t n = 2;
+    Eigen::MatrixXd Mat_c(2 * n, 2 * n);
+    Mat_c.setIdentity();
+    Mat_c.block(n, n, n, n) *= 2.0;
 
+    Eigen::MatrixXd A = Eigen::MatrixXd::Identity(2 * n, 2 * n);
+    Eigen::VectorXd b(1);
+    b(0) = n;
+    Eigen::MatrixXd X(2 * n, 2 * n);
+    SDPSolver(SemiDefineSpace::Vec(Mat_c), SemiDefineSpace::Vec(A).transpose(), b, X);
+}
 TEST(SDP, HAMMING_7_5_6) {
 
     auto [c, A, b] = Hamming_Load_Data("7_5_6");
-
+    std::cout << "Load Data Finish" << std::endl;
+    std::cout << "c rows : " << c.rows() << std::endl;
+    std::cout << "A " << A.rows() << ", " << A.cols() << std::endl;
+    std::cout << "b rows : " << b.rows() << std::endl;
     // |V| = 128
     // |E| = 1793
     // Optimizaed Value : 422/3
     Eigen::MatrixXd X(128, 128);
+    
     SDPSolver(c, A, b, X);
 
     EXPECT_NEAR(c.dot(SemiDefineSpace::Vec(X)) * 3, 422.0, 1e-5);
 }
 
+/*
 TEST(SDP, HAMMING_8_3_4) {
     // |V| = 256
     // |E| = 16129
@@ -236,6 +254,8 @@ TEST(SDP, HAMMING_11_2) {
     SDPSolver(c, A, b, X);
     EXPECT_NEAR(c.dot(SemiDefineSpace::Vec(X)) * 3, 1702, 1e-5);
 }
+*/
+
 /*
 TEST(SDP, Test_Case) {
     Eigen::MatrixXd C(7, 7);

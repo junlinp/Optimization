@@ -5,7 +5,7 @@ find_package(Eigen3 REQUIRED)
 find_package(GTest REQUIRED)
 find_package(GLOG REQUIRED)
 set(CMAKE_CXX_STANDARD 20)
-add_compile_options(-mavx -mavx2)
+add_compile_options(-mavx -mavx2 -g -O3)
 add_library(mmio mmio.c mmio.h)
 
 add_executable(${PROJECT_NAME}_test optimization_test.cpp reduce.cc)
@@ -21,7 +21,7 @@ add_executable(Linear_Solver_test linear_solver_test.cpp linear_programing.cc)
 target_include_directories(Linear_Solver_test PUBLIC
                            "${PROJECT_BINARY_DIR}"
                            )
-                           
+
 target_link_libraries(Linear_Solver_test PUBLIC
 GTest::GTest
 Eigen3::Eigen

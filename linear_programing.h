@@ -1,9 +1,10 @@
 #include <Eigen/Dense>
-#include <eigen3/unsupported/Eigen/KroneckerProduct>
+#include <Eigen/Sparse>
 
 #include <vector>
 #include <iostream>
 
+EIGEN_USE
 void LPSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A,
               const Eigen::VectorXd& b, Eigen::VectorXd& x);
 /**
@@ -71,6 +72,11 @@ using Vector = Eigen::VectorXd;
 using Matrix = Eigen::MatrixXd;
 
   static Eigen::MatrixXd P(const Vector& v) { return v.array().square().matrix().asDiagonal();};
+  static Eigen::MatrixXd L(const Vector& v) { return v.asDiagonal();}
+  static Eigen::VectorXd P(const Vector& x, const Vector& y, const Vector& z) {
+      return (x.array() * z.array() * y.array()).matrix();
+  }
+
   static Eigen::VectorXd Sqrt(const Vector& v) { return v.array().sqrt().matrix();};
 
   static Vector Inverse(const Vector& v) { return Vector((1.0 / v.array()).matrix());}
@@ -86,6 +92,9 @@ using Matrix = Eigen::MatrixXd;
 
   static double Norm(const Vector& v) {
       return std::sqrt(Trace(v, v));
+  }
+  static bool Varify(const Vector& v) {
+      return (v.array() >= 0).all();
   }
 };
 
@@ -123,41 +132,92 @@ public:
         size_t n = std::sqrt(n_n);
         return Vec(Eigen::MatrixXd::Identity(n, n) * zeta);
     }
-    static Eigen::MatrixXd L(const Eigen::VectorXd& v) {
+
+    
+    // It is sparse
+    static Eigen::SparseMatrix<double> L(const Eigen::VectorXd& v) {
         size_t n_n = v.rows();
         size_t n = std::sqrt(n_n);
-        return 0.5 * (Eigen::kroneckerProduct(Eigen::MatrixXd::Identity(n, n), Mat(v)) + Eigen::kroneckerProduct(Mat(v), Eigen::MatrixXd::Identity(n, n)));
+        Eigen::MatrixXd X = Mat(v);
+        using T = Eigen::Triplet<double>;
+
+        Eigen::SparseMatrix<double> lhs(n * n, n * n);
+        Eigen::SparseMatrix<double> rhs(n * n, n * n);
+        std::vector<T> lhs_triple, rhs_triple;
+        lhs_triple.reserve(n * n * n);
+        rhs_triple.reserve(n * n * n);
+        for(size_t col = 0; col < n; col++) {
+            for(size_t row = 0; row < n; row++) {
+                for(int i = 0; i < n; i++) {
+                    size_t row_offset = i * n;
+                    size_t col_offset = i * n;
+                    lhs_triple.push_back(T(row_offset + row, col_offset+col, 0.5 * X(row, col)));
+                }
+            }
+        }
+        lhs.setFromTriplets(lhs_triple.begin(), lhs_triple.end());
+
+        for (int col = 0; col < n; col++) {
+            for(int row = 0; row < n; row++) {
+                size_t row_offset = row * n;
+                size_t col_offset = col * n;
+                for(int i = 0; i < n; i++) {
+                    rhs_triple.push_back(T(row_offset + i, col_offset + i, 0.5 * X(row, col)));
+                }
+            }
+        }
+        rhs.setFromTriplets(rhs_triple.begin(), rhs_triple.end());
+
+        return (lhs + rhs);
+        
     }
 
     static Eigen::MatrixXd P(const Eigen::VectorXd& v) {
-        return 2 * L(v) * L(v) - L(Multiple(v, v));
+        size_t n_n = v.rows();
+        size_t n = std::sqrt(n_n);
+        Eigen::MatrixXd X = Mat(v);
+        Eigen::MatrixXd Q(n_n, n_n);
+        for(int row = 0; row < n; row++) {
+            for (int col = 0; col < n; col++) {
+                Q.block(row * n, col * n, n, n) = X(row, col) * X;
+            }
+        }
+        return Q;
+    }
+
+    static Eigen::VectorXd P(const Eigen::VectorXd& X, const Eigen::VectorXd& Y, const Eigen::VectorXd& Z) {
+        // 0.5 * (XZY + YZX)
+
+        Eigen::MatrixXd lhs = Mat(X) * Mat(Z) * Mat(Y);
+        Eigen::MatrixXd rhs = Mat(Y) * Mat(Z) * Mat(X);
+
+        return 0.5 * Vec(lhs + rhs);
     }
 
     static Eigen::VectorXd Sqrt(const Eigen::VectorXd& v) {
         Matrix m = Mat(v);
         auto svd = m.bdcSvd(Eigen::ComputeFullU | Eigen::ComputeFullV);
         Eigen::VectorXd singular_value = svd.singularValues();
-        singular_value.array().sqrt();
+        singular_value = singular_value.array().sqrt();
         return Vec(svd.matrixU() * singular_value.asDiagonal() * svd.matrixV().transpose());
     }
     static Vector Inverse(const Vector& v) {
         Matrix m = Mat(v);
         auto svd = m.bdcSvd(Eigen::ComputeFullU | Eigen::ComputeFullV);
         Eigen::VectorXd singular_value = svd.singularValues();
-        singular_value.array().inverse();
+        singular_value = singular_value.array().inverse();
         return Vec(svd.matrixU() * singular_value.asDiagonal() * svd.matrixV().transpose());
     }
     static Vector Multiple(const Vector& lhs, const Vector& rhs) { 
-        Matrix l = Mat(lhs), r = Mat(rhs); 
-        return Vec(((lhs * rhs) + (rhs * lhs)) * 0.5);
-        };
+        return L(lhs) * rhs;
+    };
 
     static double Trace(const Vector& lhs, const Vector& rhs) {
         return (Mat(lhs).transpose() * Mat(rhs)).trace();
     }
 
     static double Norm(const Vector& v) {
-        return Mat(v).norm();
+        return std::sqrt(Trace(v, v));
     }
 
     static Vector Vec(const Matrix& mat) { 
@@ -167,9 +227,22 @@ public:
 
     static Matrix Mat(const Vector& vec) { 
         size_t n_n = vec.rows(); 
-        size_t n = std::sqrt(n); 
-        return Eigen::Map<const Matrix>(vec.data(), n, n);
+        size_t n = std::sqrt(n_n); 
+        Matrix r(n, n);
+        for(int row = 0; row < n; row++) {
+            for(int col = 0; col < n; col++) {
+                r(row, col) = vec(row + col * n);
+            }
         }
+        return r;
+    }
+
+    static bool Varify(const Vector& vec) {
+        Eigen::MatrixXd m = Mat(vec);
+
+        double sum = (m - m.transpose()).array().sum();
+        return sum <= 1e-6 * m.rows() * m.cols();
+    }
 };
 
 template <class Matrix, class Vector, class ConicSpace>
@@ -178,19 +251,23 @@ auto FeasibleStep(const Vector& C, const Matrix& A, const Vector& b0,
                   const Vector& X, const Vector& y, const Vector& S,
                   double delta, double mu0, double theta, ConicSpace) {
   
-  Matrix P_X_sqrt = ConicSpace::P(ConicSpace::Sqrt(X));
-  Vector w = P_X_sqrt * ConicSpace::Sqrt(ConicSpace::Inverse(P_X_sqrt * S));
+  //Eigen::MatrixXd P_X_sqrt = ConicSpace::P(ConicSpace::Sqrt(X));
+  Vector X_sqrt = ConicSpace::Sqrt(X);
+  //std::cout << "X_sqrt : " << std::endl << X_sqrt << std::endl;
 
-  std::cout << "X : " << X << std::endl;
-  std::cout << "S : " << S << std::endl;
-  std::cout << "w : " << w << std::endl;
+  //Vector w = P_X_sqrt * ConicSpace::Sqrt(ConicSpace::Inverse(P_X_sqrt * S));
+  Vector temp = ConicSpace::Sqrt(ConicSpace::Inverse(ConicSpace::P(X_sqrt, X_sqrt, S)));
+  //Vector w = P_X_sqrt * ConicSpace::Sqrt(ConicSpace::Inverse(ConicSpace::P(X_sqrt, X_sqrt, S)));
+  Vector w = ConicSpace::P(X_sqrt, X_sqrt, temp);
+  //std::cout << "w : " << ConicSpace::Varify(w) << std::endl;
 
-  Matrix Pw_sqrt = ConicSpace::P(ConicSpace::Sqrt(w));
-  Matrix Pw_sqrt_inv = ConicSpace::P(ConicSpace::Sqrt(ConicSpace::Inverse(w)));
-
+  Eigen::MatrixXd Pw_sqrt = ConicSpace::P(ConicSpace::Sqrt(w));
+  Eigen::MatrixXd Pw_sqrt_inv = ConicSpace::P(ConicSpace::Sqrt(ConicSpace::Inverse(w)));
+  Eigen::MatrixXd Pw = ConicSpace::P(w);
+  //std::cout << "P operator" << std::endl << Pw << std::endl;
+  //std::cout << "Pw * S : " << std::endl << Pw * S << std::endl;
   Vector rb = b0 - A * X0;
-  Vector rc = C - A.transpose() * y0 - S0;
-  
+  Vector rc = C - Matrix(A.transpose()) * y0 - S0;
   double mu = delta * mu0;
   double inverse_sqrt_mu = 1.0 / (std::sqrt(mu) + std::numeric_limits<double>::epsilon());
   //  | a  0   0 |  | dx |   |theta * delta * rb|                                | prim | 
@@ -200,15 +277,21 @@ auto FeasibleStep(const Vector& C, const Matrix& A, const Vector& b0,
   //        b = 1.0 / sqrt(mu) * P(w)^0.5 * A^T
 
 
-  Vector v = inverse_sqrt_mu * Pw_sqrt_inv * X;
-
+  Vector v = inverse_sqrt_mu * Pw_sqrt * S;
+  
   Matrix a = std::sqrt(mu) * A * Pw_sqrt;
-  Matrix b = inverse_sqrt_mu * Pw_sqrt * A.transpose();
+  Matrix b = inverse_sqrt_mu * inverse_sqrt_mu * a.transpose(); // Pw_sqrt * A.transpose() and Pw_sqrt is Symmetry
 
   Vector prim = theta * delta * rb;
   Vector dual = inverse_sqrt_mu * theta * delta * Pw_sqrt * rc;
   Vector comp = ((1 - theta) * ConicSpace::Inverse(v) - v);
+  //std::cout << "Prim : " << prim << std::endl;
+  //std::cout << "dual : " << dual << std::endl;
+  //std::cout << "comp : " << comp << std::endl;
+  //std::cout << "a : " << a << std::endl;
+  //std::cout << "b : " << b << std::endl;
 
+  std::cout << "Build Problem" << std::endl;
   // Using Schur Complement
   //  a * b * dy = prim + a * (dual - comp)
   //  since a * b = A * P(w) * A^T
@@ -218,21 +301,24 @@ auto FeasibleStep(const Vector& C, const Matrix& A, const Vector& b0,
   //  dx = b * dy - dual + comp
   //   ds = comp - dx
   //Vector dy = (a * b).fullPivHouseholderQr().solve(prim + a * (dual - comp));
-  Matrix Pw = ConicSpace::P(w);
-  Vector residual = theta *delta * (rb + A * Pw * rc) - mu * (1 - theta) * A * Pw * ConicSpace::Inverse(X) + A * Pw * S;
-  //Vector dy = (A * w.P() * A.transpose()).ldlt().solve(prim + a * (dual - comp));
-  Vector dy = (A * Pw * A.transpose()).ldlt().solve(residual);
 
+  Vector residual = theta *delta * (rb + A * Pw * rc) - mu * (1 - theta) * A * Pw * ConicSpace::Inverse(X) + A * Pw * S;
+  Vector dy = (A * Pw * Matrix(A.transpose())).ldlt().solve(prim + a * (dual - comp));
+  //Vector dy = (A * Pw * A.transpose()).ldlt().solve(residual);
+  //std::cout << "dy : " << dy << std::endl;
   Vector dx = b * dy - dual + comp;
+  //std::cout << "dx : " << dx << std::endl;
   Vector ds = dual - b * dy;
-/*
+  //std::cout << "ds : " << ds << std::endl;
+
   std::printf("Feasible Solution\n");
   std::printf("delta : %f\n", delta);
-  std::printf("Norm (a * dx - prim) = %f\n", Norm(a * dx - prim));
-  std::printf("Norm (b * dy + ds - dual) = %f\n", Norm(b * dy + ds - dual));
-  std::printf("Norm (dx + ds) = %f\n", Norm(comp));
+  std::printf("dy solution error = %f\n", (A * Pw * Matrix(A.transpose()) * dy - (prim + a * (dual - comp))).norm());
+  std::printf("Norm (a * dx - prim) = %f\n", (a * dx - prim).norm());
+  std::printf("Norm (b * dy + ds - dual) = %f\n", (b * dy + ds - dual).norm());
+  std::printf("Norm (dx + ds - comp) = %f\n", (dx + ds - comp).norm());
   std::printf("<dx, ds> = %f\n", dx.dot(ds));
-  */
+
 
   Vector delta_x = std::sqrt(mu) * Pw_sqrt * dx;
   Vector delta_s = std::sqrt(mu) * Pw_sqrt_inv * ds;
@@ -256,7 +342,7 @@ void FullNTStepIMP(const Vector& C,const Matrix& A, const Vector& b,Vector& X, C
     // Warning: 
     // there must be let X^(*) + S^(*) <=_(K) zeta * e
     // 
-    double zeta = 1024.0;
+    double zeta = 10.0;
     //
     double mu0 = zeta * zeta;
     double epsilon = 1e-8;
@@ -273,22 +359,32 @@ void FullNTStepIMP(const Vector& C,const Matrix& A, const Vector& b,Vector& X, C
 
     Vector X0 = X, S0 = S;
     Eigen::VectorXd y0 = y;
-
+    size_t epoch = 0;
+    std::cout << "Here" << std::endl;
+    //std::cout << "L(X) : " << ConicSpace::L(X) << std::endl;
+    std::cout << "Trace(X, S) : " << ConicSpace::Trace(X, S) << std::endl;
+    std::cout << "Primal Constraint Norm : " << (A * X - b).norm() << std::endl;
+    std::cout << "Dual constraint Norm : " << ConicSpace::Norm(C - A.transpose() * y - S) << std::endl;
     while (Max(ConicSpace::Trace(X, S), (A*X - b).norm(), ConicSpace::Norm(C - A.transpose() * y - S)) > epsilon) {
         // Feasible Step
+        std::cout << "Epoch : " <<  ++epoch << std::endl;
+        std::cout << "Trace(X, S) : " << ConicSpace::Trace(X, S) << std::endl;
+        std::cout << "Primal Constraint Norm : " << (A * X - b).norm() << std::endl;
+        std::cout << "Dual constraint Norm : " << ConicSpace::Norm(C - A.transpose() * y - S) << std::endl;
+
         auto [delta_X, delta_y, delta_S] = FeasibleStep(C, A, b, X0, y0, S0, X, y, S, delta, mu0, theta, ConicSpace{});
         X += delta_X;
         y += delta_y;
         S += delta_S;
 
         delta = (1- theta) * delta;
-        std::cout << "X : " << X << std::endl;
-        std::cout << "y : " << y << std::endl;
-        std::cout << "S : " << S << std::endl;
+        //std::cout << "X : " << X << std::endl;
+        //std::cout << "y : " << y << std::endl;
+        //std::cout << "S : " << S << std::endl;
    
-        //std::printf("Norm of Primal Constraint %f\n", Norm(A * X.ToLinearVector() - b));
-        //std::printf("Norm of Dual Constraint %f\n", Norm(C - A.transpose() * y - S.ToLinearVector()));
-        //std::printf("Gap : %f\n", Trace(X, S));
+        std::printf("Norm of Primal Constraint %f\n", (A * X - b).norm());
+        std::printf("Norm of Dual Constraint %f\n", ConicSpace::Norm(C - A.transpose() * y - S));
+        std::printf("Gap : %f\n", ConicSpace::Trace(X, S));
         
     }
 
