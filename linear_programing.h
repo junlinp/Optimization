@@ -4,7 +4,6 @@
 #include <vector>
 #include <iostream>
 
-EIGEN_USE
 void LPSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A,
               const Eigen::VectorXd& b, Eigen::VectorXd& x);
 /**
@@ -250,7 +249,7 @@ auto FeasibleStep(const Vector& C, const Matrix& A, const Vector& b0,
                   const Vector& X0, const Vector& y0, const Vector& S0,
                   const Vector& X, const Vector& y, const Vector& S,
                   double delta, double mu0, double theta, ConicSpace) {
-  
+  auto start = std::chrono::high_resolution_clock::now();
   //Eigen::MatrixXd P_X_sqrt = ConicSpace::P(ConicSpace::Sqrt(X));
   Vector X_sqrt = ConicSpace::Sqrt(X);
   //std::cout << "X_sqrt : " << std::endl << X_sqrt << std::endl;
@@ -264,6 +263,7 @@ auto FeasibleStep(const Vector& C, const Matrix& A, const Vector& b0,
   Eigen::MatrixXd Pw_sqrt = ConicSpace::P(ConicSpace::Sqrt(w));
   Eigen::MatrixXd Pw_sqrt_inv = ConicSpace::P(ConicSpace::Sqrt(ConicSpace::Inverse(w)));
   Eigen::MatrixXd Pw = ConicSpace::P(w);
+
   //std::cout << "P operator" << std::endl << Pw << std::endl;
   //std::cout << "Pw * S : " << std::endl << Pw * S << std::endl;
   Vector rb = b0 - A * X0;
@@ -290,8 +290,9 @@ auto FeasibleStep(const Vector& C, const Matrix& A, const Vector& b0,
   //std::cout << "comp : " << comp << std::endl;
   //std::cout << "a : " << a << std::endl;
   //std::cout << "b : " << b << std::endl;
-
-  std::cout << "Build Problem" << std::endl;
+  auto end = std::chrono::high_resolution_clock::now();
+  std::cout << "Build Problem elapse : " << (end - start).count() / 1000000 << " ms" << std::endl;
+  start = std::chrono::high_resolution_clock::now();
   // Using Schur Complement
   //  a * b * dy = prim + a * (dual - comp)
   //  since a * b = A * P(w) * A^T
@@ -310,6 +311,8 @@ auto FeasibleStep(const Vector& C, const Matrix& A, const Vector& b0,
   //std::cout << "dx : " << dx << std::endl;
   Vector ds = dual - b * dy;
   //std::cout << "ds : " << ds << std::endl;
+  end = std::chrono::high_resolution_clock::now();
+  std::cout << "Solving elapse : " << (end - start).count() / 10000000  << " ms"<< std::endl;
 
   std::printf("Feasible Solution\n");
   std::printf("delta : %f\n", delta);
