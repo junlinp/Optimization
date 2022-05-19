@@ -2,7 +2,7 @@
 #include "stdio.h"
 #include "string.h"
 #include "Eigen/Dense"
-#include "chrono"
+#include <chrono>
 #include "sparse_matrix.h"
 
 extern "C" {
@@ -65,8 +65,9 @@ public:
         std::cout << "Time Elapsed :" << duration.count() << " milliseconds" << std::endl;
     }
 private:
-    std::chrono::steady_clock::time_point start_;
+    decltype(std::chrono::high_resolution_clock::now()) start_;
 };
+
 void InverseSolver(const Eigen::MatrixXd & A, const Eigen::VectorXd& b, Eigen::VectorXd& x) {
     TimeUse t;
     x = A.inverse() * b;

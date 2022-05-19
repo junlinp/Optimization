@@ -5,6 +5,7 @@
 
 #include <vector>
 #include <iostream>
+#include <chrono>
 
 void LPSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A,
               const Eigen::VectorXd& b, Eigen::VectorXd& x);
@@ -149,7 +150,7 @@ public:
         rhs_triple.reserve(n * n * n);
         for(size_t col = 0; col < n; col++) {
             for(size_t row = 0; row < n; row++) {
-                for(int i = 0; i < n; i++) {
+                for(size_t i = 0; i < n; i++) {
                     size_t row_offset = i * n;
                     size_t col_offset = i * n;
                     lhs_triple.push_back(T(row_offset + row, col_offset+col, 0.5 * X(row, col)));
@@ -158,11 +159,11 @@ public:
         }
         lhs.setFromTriplets(lhs_triple.begin(), lhs_triple.end());
 
-        for (int col = 0; col < n; col++) {
-            for(int row = 0; row < n; row++) {
+        for (size_t col = 0; col < n; col++) {
+            for(size_t row = 0; row < n; row++) {
                 size_t row_offset = row * n;
                 size_t col_offset = col * n;
-                for(int i = 0; i < n; i++) {
+                for(size_t i = 0; i < n; i++) {
                     rhs_triple.push_back(T(row_offset + i, col_offset + i, 0.5 * X(row, col)));
                 }
             }
@@ -178,8 +179,8 @@ public:
         size_t n = std::sqrt(n_n);
         Eigen::MatrixXd X = Mat(v);
         Eigen::MatrixXd Q(n_n, n_n);
-        for(int row = 0; row < n; row++) {
-            for (int col = 0; col < n; col++) {
+        for(size_t row = 0; row < n; row++) {
+            for (size_t col = 0; col < n; col++) {
                 Q.block(row * n, col * n, n, n) = X(row, col) * X;
             }
         }
@@ -231,8 +232,8 @@ public:
         size_t n_n = vec.rows(); 
         size_t n = std::sqrt(n_n); 
         Matrix r(n, n);
-        for(int row = 0; row < n; row++) {
-            for(int col = 0; col < n; col++) {
+        for(size_t row = 0; row < n; row++) {
+            for(size_t col = 0; col < n; col++) {
                 r(row, col) = vec(row + col * n);
             }
         }
@@ -251,7 +252,7 @@ public:
 template <class Matrix, class Vector, class ConicSpace>
 auto FeasibleStep(const Vector& C, const Matrix& A, const Vector& b0,
                   const Vector& X0, const Vector& y0, const Vector& S0,
-                  const Vector& X, const Vector& y, const Vector& S,
+                  const Vector& X, const Vector& S,
                   double delta, double mu0, double theta, ConicSpace) {
   auto start = std::chrono::high_resolution_clock::now();
   //Eigen::MatrixXd P_X_sqrt = ConicSpace::P(ConicSpace::Sqrt(X));
@@ -333,7 +334,7 @@ auto FeasibleStep(const Vector& C, const Matrix& A, const Vector& b0,
   return std::tuple<Vector, Vector, Vector>(delta_x, dy, delta_s);
 }
 template <class ConicSpace, class Matrix, class Vector>
-auto CenteringStep(const Vector& C, const Matrix& A, const Vector& b0, const Vector& X, const Vector& y, const Vector&S, double mu) {
+auto CenteringStep(const Matrix& A, const Vector& X, const Vector&S, double mu) {
 
   Vector X_sqrt = ConicSpace::Sqrt(X);
   Vector temp = ConicSpace::Sqrt(ConicSpace::Inverse(ConicSpace::P(X_sqrt, X_sqrt, S)));
@@ -394,7 +395,6 @@ void FullNTStepIMP(const Vector& C,const Matrix& A, const Vector& b,Vector& X, C
     double mu0 = zeta * zeta;
     double epsilon = 1e-8;
 
-    double tau = 0.25;
     double theta = 1.0 / std::sqrt(2 * X.rows());
     double delta = 1.0;
 
@@ -419,7 +419,7 @@ void FullNTStepIMP(const Vector& C,const Matrix& A, const Vector& b,Vector& X, C
         std::cout << "Primal Constraint Norm : " << (A * X - b).norm() << std::endl;
         std::cout << "Dual constraint Norm : " << ConicSpace::Norm(C - A.transpose() * y - S) << std::endl;
 
-        auto [delta_X, delta_y, delta_S] = FeasibleStep(C, A, b, X0, y0, S0, X, y, S, delta, mu0, theta, ConicSpace{});
+        auto [delta_X, delta_y, delta_S] = FeasibleStep(C, A, b, X0, y0, S0, X, S, delta, mu0, theta, ConicSpace{});
         X += delta_X;
         y += delta_y;
         S += delta_S;
@@ -435,7 +435,7 @@ void FullNTStepIMP(const Vector& C,const Matrix& A, const Vector& b,Vector& X, C
         // Centering Path
         while (delta_distance > 0.5) {
             std::cout << "Delta Distance : " << delta_distance << std::endl; 
-            auto [delta_X, delta_y, delta_S] = CenteringStep<ConicSpace>(C, A, b, X, y, S, mu);
+            auto [delta_X, delta_y, delta_S] = CenteringStep<ConicSpace>(A, X, S, mu);
             X += delta_X;
             y += delta_y;
             S += delta_S;

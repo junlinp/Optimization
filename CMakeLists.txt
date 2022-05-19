@@ -9,6 +9,7 @@ find_package(LAPACK REQUIRED)
 
 set(CMAKE_CXX_STANDARD 20)
 add_compile_options(-mavx -mavx2 -g -O3)
+add_compile_options(-Wall -Wextra -pedantic )
 add_library(mmio mmio.c mmio.h)
 
 add_executable(${PROJECT_NAME}_test optimization_test.cpp reduce.cc)
@@ -39,15 +40,16 @@ BLAS::BLAS
 #Eigen3::Eigen
 #)
 
-add_compile_options(-Wall -Wextra -pedantic -Werror)
 
 add_executable(Sparse_Matrix_Test sparse_matrix_test.cpp )
-target_link_libraries(Sparse_Matrix_Test GTest::GTest mmio)
+target_link_libraries(Sparse_Matrix_Test GTest::GTest mmio
+Eigen3::Eigen)
 target_compile_definitions(Sparse_Matrix_Test
     PRIVATE -DTest_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
 
 add_executable(IterativeMethodTest itertive_method_test.cpp)
-target_link_libraries(IterativeMethodTest GTest::GTest)
+target_link_libraries(IterativeMethodTest GTest::GTest
+Eigen3::Eigen)
 
 
 #add_subdirectory(bal)

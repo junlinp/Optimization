@@ -25,7 +25,7 @@ bool BFGS(AutoDiffFunction<Functor, residual_num, parameter_num>& functor,
 const double EPS = 1e-11;
   int max_num_iterator = 1000;
   for (int iterator = 0; iterator < max_num_iterator; iterator++) {
-      auto error = functor(x0);
+      //auto error = functor(x0);
     auto gradient = functor.Jacobian(x0);
       if (gradient.norm() < EPS) {
           return true;

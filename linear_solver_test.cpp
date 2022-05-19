@@ -141,7 +141,7 @@ auto Hamming_Load_Data(const std::string& data_set) {
     ifs.close();
     size_t n = c_coeff.size();
     Eigen::VectorXd c(n);
-    for(int i = 0; i < n; i++) {
+    for(size_t i = 0; i < n; i++) {
         c(i) = c_coeff[i];
     }
 
@@ -153,7 +153,7 @@ auto Hamming_Load_Data(const std::string& data_set) {
     }
     size_t m = b_coeff.size();
     Eigen::VectorXd b(m);
-    for(int i = 0; i < m; i++) {
+    for(size_t i = 0; i < m; i++) {
         b(i) = b_coeff[i];
     }
     ifs.close();
@@ -307,6 +307,6 @@ TEST(SDP, Test_Case) {
 }
 */
 int main(int argc, char** argv) {
-    testing::InitGoogleTest();
+    testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }
