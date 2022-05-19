@@ -4,6 +4,9 @@ project(Optimization)
 find_package(Eigen3 REQUIRED)
 find_package(GTest REQUIRED)
 find_package(GLOG REQUIRED)
+find_package(BLAS REQUIRED)
+find_package(LAPACK REQUIRED)
+
 set(CMAKE_CXX_STANDARD 20)
 add_compile_options(-mavx -mavx2 -g -O3)
 add_library(mmio mmio.c mmio.h)
@@ -26,6 +29,8 @@ target_link_libraries(Linear_Solver_test PUBLIC
 GTest::GTest
 Eigen3::Eigen
 glog::glog
+LAPACK::LAPACK
+BLAS::BLAS
 )
 
 #add_executable(Auto_Diff_Test auto_diff_test.cc)

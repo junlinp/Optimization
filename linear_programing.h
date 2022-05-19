@@ -1,3 +1,5 @@
+//#define EIGEN_USE_LAPACKE
+#define EIGEN_USE_BLAS
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 
@@ -387,7 +389,7 @@ void FullNTStepIMP(const Vector& C,const Matrix& A, const Vector& b,Vector& X, C
     // Warning: 
     // there must be let X^(*) + S^(*) <=_(K) zeta * e
     // 
-    double zeta = 10.0;
+    double zeta = 5.0;
     //
     double mu0 = zeta * zeta;
     double epsilon = 1e-8;
