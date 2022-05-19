@@ -9,7 +9,6 @@ Eigen::Matrix<double, parameter_num, 1> ComputeHessianInverseMultipleGradient(
     std::deque<Eigen::Matrix<double, parameter_num, 1>> &yk) {
   // assume the H_0 is identity
   Eigen::Matrix<double, parameter_num, 1> r = gradient;
-  using VECTOR = typename Eigen::Matrix<double, parameter_num, 1>;
   assert(sk.size() == yk.size());
   std::stack<double> alphak;
  auto sk_rit = sk.rbegin();
@@ -34,15 +33,15 @@ Eigen::Matrix<double, parameter_num, 1> ComputeHessianInverseMultipleGradient(
 template <class Functor, int residual_num, int parameter_num>
 bool LBFGS(AutoDiffFunction<Functor, residual_num, parameter_num> &functor,
            Eigen::Matrix<double, parameter_num, 1> &x0) {
-  Eigen::Matrix<double, parameter_num, parameter_num> hessian_inverse =
-      Eigen::Matrix<double, parameter_num, parameter_num>::Identity();
+  //Eigen::Matrix<double, parameter_num, parameter_num> hessian_inverse =
+   //   Eigen::Matrix<double, parameter_num, parameter_num>::Identity();
   const double EPS = 1e-11;
   int max_num_iterator = 100;
   const size_t max_history_num = 2;
   std::deque<Eigen::Matrix<double, parameter_num, 1>> sk, yk;
   // H_inverse_0 is Identity;
   for (int iterator = 0; iterator < max_num_iterator; iterator++) {
-    auto error = functor(x0);
+    //auto error = functor(x0);
     auto gradient = functor.Jacobian(x0);
     if (gradient.norm() < EPS) {
       return true;

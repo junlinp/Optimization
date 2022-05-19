@@ -3,6 +3,7 @@
 #include <assert.h>
 
 #include "iostream"
+#include <cmath>
 
 void LPSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A,
               const Eigen::VectorXd& b, Eigen::VectorXd& x) {
@@ -16,28 +17,26 @@ void LPSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A,
   double eps = 1e-8;
   size_t max_iterator = 1024;
   double mu = 10.0;
-  double alpha = 0.1;
-  double beta = 0.5;
   double sigma = 0.9;
   Eigen::MatrixXd zero_m_m(m, m), zero_m_n(m, n), zero_n_n(n, n);
-  for (int i = 0; i < m; i++) {
-    for (int j = 0; j < m; j++) {
+  for (size_t i = 0; i < m; i++) {
+    for (size_t j = 0; j < m; j++) {
       zero_m_m(i, j) = 0.0;
     }
-    for (int k = 0; k < n; k++) {
+    for (size_t k = 0; k < n; k++) {
       zero_m_n(i, k) = 0.0;
     }
   }
 
-  for (int i = 0; i < n; i++) {
-    for (int j = 0; j < n; j++) {
+  for (size_t i = 0; i < n; i++) {
+    for (size_t j = 0; j < n; j++) {
       zero_n_n(i, j) = 0.0;
     }
   }
 
   Eigen::VectorXd e = Eigen::VectorXd::Ones(n);
   std::cout << "Iterator\t\tPrimal\t\tDual" << std::endl;
-  for (int iter = 0; iter < max_iterator; iter++) {
+  for (size_t iter = 0; iter < max_iterator; iter++) {
     Eigen::MatrixXd Z = z.asDiagonal();
     Eigen::MatrixXd X = x.asDiagonal();
     Eigen::MatrixXd H(2 * n + m, 2 * n + m);
@@ -55,7 +54,7 @@ void LPSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A,
     Eigen::VectorXd delta_z = delta.block(n + m, 0, n, 1);
 
     double s_max = 1.0;
-    for (int i = 0; i < n; i++) {
+    for (size_t i = 0; i < n; i++) {
       if (delta_x(i) < 0) {
         s_max = std::min(s_max, x(i) / -delta_x(i));
       }
@@ -150,10 +149,10 @@ Eigen::MatrixXd KroneckerSum(const Eigen::MatrixXd& A,
 }
 
 Eigen::MatrixXd mat(const Eigen::VectorXd& vec) {
-  size_t n = static_cast<size_t>(std::sqrtf(vec.rows()) + 0.5);
+  size_t n = static_cast<size_t>(sqrtf(vec.rows()) + 0.5);
   Eigen::MatrixXd res(n, n);
 
-  for (int i = 0; i < n; i++) {
+  for (size_t i = 0; i < n; i++) {
     res.col(i) = vec.block(n * i, 0, n, 1);
   }
   return res;
@@ -258,30 +257,6 @@ void LPSolver2(const Eigen::VectorXd& c, const Eigen::MatrixXd& A,
                const Eigen::VectorXd& b, Eigen::VectorXd& x) {
       FullNTStepIMP(c, A, b, x, OrthantSpace{});
 }
-
-void SymmetricSolver2(const Eigen::MatrixXd C,
-                      const std::vector<Eigen::MatrixXd>& A,
-                      const Eigen::VectorXd& b, Eigen::MatrixXd& x) {
-  // Convert the SDP to LCP Problem
-
-  //   min tr(C * X)
-  //   s.t tr(A_i * X) = b_i for i = 0... m
-  //       X >= 0  for X is a semidefinite cone
-
-  // Using KKT Conditions
-  // we have
-  //
-}
-
-
-void RobustLPSolver(const Eigen::VectorXd& c,
-                    const std::vector<Eigen::VectorXd>& A,
-                    const std::vector<double>& b,
-                    const std::vector<Eigen::VectorXd>& E,
-                    const std::vector<double>& F, Eigen::VectorXd& x) {
- Eigen::MatrixXd A0(A.size(), A.at(0).rows());
- Eigen::VectorXd b0(b.size());
-                    }
 
 
 

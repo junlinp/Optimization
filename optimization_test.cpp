@@ -160,7 +160,7 @@ TEST(LenearSystem, Gradient_CHECK) {
   x << 3.4181, 2.06285;
   for (int i = 0; i < 4; i++) {
     EXPECT_TRUE(GradientChecker(auto_diff, x));
-    auto gradient = auto_diff.Gradient(x);
+    //auto gradient = auto_diff.Gradient(x);
 
     auto computed_gradient = [](auto x0) {
       Eigen::Matrix<double, 2, 2> ATA;
@@ -169,7 +169,7 @@ TEST(LenearSystem, Gradient_CHECK) {
       ATb << 484, 734;
       return 2 * ATA * x0 - 2 * ATb;
     };
-
+	/*
     auto inference = [](auto x0) {
       Eigen::Matrix<double, 2, 2> A;
       A << 5, 7, 7, 11;
@@ -177,6 +177,7 @@ TEST(LenearSystem, Gradient_CHECK) {
       b << 31, 47;
       return (A * x0 - b).dot(A * x0 - b);
     };
+    */
     auto computed_gradient_value = computed_gradient(x);
     // std::cout << "gradient : " << gradient << std::endl;
     // std::cout << "computed_gradient : " << computed_gradient_value <<

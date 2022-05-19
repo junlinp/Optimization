@@ -1,8 +1,11 @@
+//#define EIGEN_USE_LAPACKE
+#define EIGEN_USE_BLAS
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 
 #include <vector>
 #include <iostream>
+#include <chrono>
 
 void LPSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A,
               const Eigen::VectorXd& b, Eigen::VectorXd& x);
@@ -147,7 +150,7 @@ public:
         rhs_triple.reserve(n * n * n);
         for(size_t col = 0; col < n; col++) {
             for(size_t row = 0; row < n; row++) {
-                for(int i = 0; i < n; i++) {
+                for(size_t i = 0; i < n; i++) {
                     size_t row_offset = i * n;
                     size_t col_offset = i * n;
                     lhs_triple.push_back(T(row_offset + row, col_offset+col, 0.5 * X(row, col)));
@@ -156,11 +159,11 @@ public:
         }
         lhs.setFromTriplets(lhs_triple.begin(), lhs_triple.end());
 
-        for (int col = 0; col < n; col++) {
-            for(int row = 0; row < n; row++) {
+        for (size_t col = 0; col < n; col++) {
+            for(size_t row = 0; row < n; row++) {
                 size_t row_offset = row * n;
                 size_t col_offset = col * n;
-                for(int i = 0; i < n; i++) {
+                for(size_t i = 0; i < n; i++) {
                     rhs_triple.push_back(T(row_offset + i, col_offset + i, 0.5 * X(row, col)));
                 }
             }
@@ -176,8 +179,8 @@ public:
         size_t n = std::sqrt(n_n);
         Eigen::MatrixXd X = Mat(v);
         Eigen::MatrixXd Q(n_n, n_n);
-        for(int row = 0; row < n; row++) {
-            for (int col = 0; col < n; col++) {
+        for(size_t row = 0; row < n; row++) {
+            for (size_t col = 0; col < n; col++) {
                 Q.block(row * n, col * n, n, n) = X(row, col) * X;
             }
         }
@@ -212,7 +215,8 @@ public:
     };
 
     static double Trace(const Vector& lhs, const Vector& rhs) {
-        return (Mat(lhs).transpose() * Mat(rhs)).trace();
+        Vector res = Multiple(lhs, rhs);
+        return res.dot(res);
     }
 
     static double Norm(const Vector& v) {
@@ -228,8 +232,8 @@ public:
         size_t n_n = vec.rows(); 
         size_t n = std::sqrt(n_n); 
         Matrix r(n, n);
-        for(int row = 0; row < n; row++) {
-            for(int col = 0; col < n; col++) {
+        for(size_t row = 0; row < n; row++) {
+            for(size_t col = 0; col < n; col++) {
                 r(row, col) = vec(row + col * n);
             }
         }
@@ -238,16 +242,17 @@ public:
 
     static bool Varify(const Vector& vec) {
         Eigen::MatrixXd m = Mat(vec);
+        Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd>  eigen_solver(m);
+        if (eigen_solver.info() != Eigen::Success) abort();
 
-        double sum = (m - m.transpose()).array().sum();
-        return sum <= 1e-6 * m.rows() * m.cols();
+        return (eigen_solver.eigenvalues().array().abs() >= 0).all();
     }
 };
 
 template <class Matrix, class Vector, class ConicSpace>
 auto FeasibleStep(const Vector& C, const Matrix& A, const Vector& b0,
                   const Vector& X0, const Vector& y0, const Vector& S0,
-                  const Vector& X, const Vector& y, const Vector& S,
+                  const Vector& X, const Vector& S,
                   double delta, double mu0, double theta, ConicSpace) {
   auto start = std::chrono::high_resolution_clock::now();
   //Eigen::MatrixXd P_X_sqrt = ConicSpace::P(ConicSpace::Sqrt(X));
@@ -278,7 +283,7 @@ auto FeasibleStep(const Vector& C, const Matrix& A, const Vector& b0,
 
 
   Vector v = inverse_sqrt_mu * Pw_sqrt * S;
-  
+  std::cout << "Delta Distance : " << 0.5 * ConicSpace::Norm(ConicSpace::Inverse(v) - v) << std::endl; 
   Matrix a = std::sqrt(mu) * A * Pw_sqrt;
   Matrix b = inverse_sqrt_mu * inverse_sqrt_mu * a.transpose(); // Pw_sqrt * A.transpose() and Pw_sqrt is Symmetry
 
@@ -312,7 +317,7 @@ auto FeasibleStep(const Vector& C, const Matrix& A, const Vector& b0,
   Vector ds = dual - b * dy;
   //std::cout << "ds : " << ds << std::endl;
   end = std::chrono::high_resolution_clock::now();
-  std::cout << "Solving elapse : " << (end - start).count() / 10000000  << " ms"<< std::endl;
+  std::cout << "Solving elapse : " << (end - start).count() / 1000000  << " ms"<< std::endl;
 
   std::printf("Feasible Solution\n");
   std::printf("delta : %f\n", delta);
@@ -328,9 +333,49 @@ auto FeasibleStep(const Vector& C, const Matrix& A, const Vector& b0,
 
   return std::tuple<Vector, Vector, Vector>(delta_x, dy, delta_s);
 }
+template <class ConicSpace, class Matrix, class Vector>
+auto CenteringStep(const Matrix& A, const Vector& X, const Vector&S, double mu) {
+
+  Vector X_sqrt = ConicSpace::Sqrt(X);
+  Vector temp = ConicSpace::Sqrt(ConicSpace::Inverse(ConicSpace::P(X_sqrt, X_sqrt, S)));
+  Vector w = ConicSpace::P(X_sqrt, X_sqrt, temp);
+  Eigen::MatrixXd Pw_sqrt = ConicSpace::P(ConicSpace::Sqrt(w));
+  Eigen::MatrixXd Pw_sqrt_inv = ConicSpace::P(ConicSpace::Sqrt(ConicSpace::Inverse(w)));
+  Eigen::MatrixXd Pw = ConicSpace::P(w);
+  double inverse_sqrt_mu = 1.0 / (std::sqrt(mu));
+  Vector v = inverse_sqrt_mu * Pw_sqrt * S;
+  std::cout << "Delta Distance : " << 0.5 * ConicSpace::Norm(ConicSpace::Inverse(v) - v) << std::endl; 
+  Matrix a = std::sqrt(mu) * A * Pw_sqrt;
+  Matrix b = inverse_sqrt_mu * inverse_sqrt_mu * a.transpose(); // Pw_sqrt * A.transpose() and Pw_sqrt is Symmetry
+
+  Vector comp = (ConicSpace::Inverse(v) - v);
+
+  //Vector residual = theta *delta * (rb + A * Pw * rc) - mu * (1 - theta) * A * Pw * ConicSpace::Inverse(X) + A * Pw * S;
+  Vector dy = (A * Pw * Matrix(A.transpose())).ldlt().solve(a * ( - comp));
+  Vector dx = b * dy + comp;
+  Vector ds = b * dy;
+
+  Vector delta_x = std::sqrt(mu) * Pw_sqrt * dx;
+  Vector delta_s = std::sqrt(mu) * Pw_sqrt_inv * ds;
+
+  return std::tuple<Vector, Vector, Vector>(delta_x, dy, delta_s);
+}
 inline double Max(double a, double b, double c) {
     return std::max(c, std::max(a, b));
 }
+
+template<class ConicSpace>
+Eigen::VectorXd ComputeV(const Eigen::VectorXd& X,const Eigen::VectorXd& S,double mu) {
+  Eigen::VectorXd X_sqrt = ConicSpace::Sqrt(X);
+  Eigen::VectorXd temp = ConicSpace::Sqrt(ConicSpace::Inverse(ConicSpace::P(X_sqrt, X_sqrt, S)));
+  Eigen::VectorXd w = ConicSpace::P(X_sqrt, X_sqrt, temp);
+
+  Eigen::MatrixXd Pw_sqrt = ConicSpace::P(ConicSpace::Sqrt(w));
+  double inverse_sqrt_mu = 1.0 / (std::sqrt(mu) + std::numeric_limits<double>::epsilon());
+
+  return inverse_sqrt_mu * Pw_sqrt * S;
+}
+
 template<class Matrix, class Vector, class ConicSpace>
 void FullNTStepIMP(const Vector& C,const Matrix& A, const Vector& b,Vector& X, ConicSpace) {
     //
@@ -345,13 +390,12 @@ void FullNTStepIMP(const Vector& C,const Matrix& A, const Vector& b,Vector& X, C
     // Warning: 
     // there must be let X^(*) + S^(*) <=_(K) zeta * e
     // 
-    double zeta = 10.0;
+    double zeta = 5.0;
     //
     double mu0 = zeta * zeta;
     double epsilon = 1e-8;
 
-    double tau = 0.25;
-    double theta = 0.5;
+    double theta = 1.0 / std::sqrt(2 * X.rows());
     double delta = 1.0;
 
 
@@ -375,19 +419,34 @@ void FullNTStepIMP(const Vector& C,const Matrix& A, const Vector& b,Vector& X, C
         std::cout << "Primal Constraint Norm : " << (A * X - b).norm() << std::endl;
         std::cout << "Dual constraint Norm : " << ConicSpace::Norm(C - A.transpose() * y - S) << std::endl;
 
-        auto [delta_X, delta_y, delta_S] = FeasibleStep(C, A, b, X0, y0, S0, X, y, S, delta, mu0, theta, ConicSpace{});
+        auto [delta_X, delta_y, delta_S] = FeasibleStep(C, A, b, X0, y0, S0, X, S, delta, mu0, theta, ConicSpace{});
         X += delta_X;
         y += delta_y;
         S += delta_S;
 
         delta = (1- theta) * delta;
-        //std::cout << "X : " << X << std::endl;
+        double mu = delta * mu0;
+        std::cout << "X is feasible : " << ConicSpace::Varify(X) << std::endl;
+        std::cout << "S is feasible : " << ConicSpace::Varify(S) << std::endl;
+
+        Vector v = ComputeV<ConicSpace>(X, S, mu);
+        double delta_distance =  0.5 * ConicSpace::Norm(ConicSpace::Inverse(v) - v); 
+
+        // Centering Path
+        while (delta_distance > 0.5) {
+            std::cout << "Delta Distance : " << delta_distance << std::endl; 
+            auto [delta_X, delta_y, delta_S] = CenteringStep<ConicSpace>(A, X, S, mu);
+            X += delta_X;
+            y += delta_y;
+            S += delta_S;
+            Vector v = ComputeV<ConicSpace>(X, S, mu);
+            delta_distance =  0.5 * ConicSpace::Norm(ConicSpace::Inverse(v) - v); 
+        }
         //std::cout << "y : " << y << std::endl;
-        //std::cout << "S : " << S << std::endl;
    
-        std::printf("Norm of Primal Constraint %f\n", (A * X - b).norm());
-        std::printf("Norm of Dual Constraint %f\n", ConicSpace::Norm(C - A.transpose() * y - S));
-        std::printf("Gap : %f\n", ConicSpace::Trace(X, S));
+        //std::printf("Norm of Primal Constraint %f\n", (A * X - b).norm());
+        //std::printf("Norm of Dual Constraint %f\n", ConicSpace::Norm(C - A.transpose() * y - S));
+        //std::printf("Gap : %f\n", ConicSpace::Trace(X, S));
         
     }
 
