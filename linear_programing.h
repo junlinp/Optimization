@@ -203,13 +203,15 @@ public:
         singular_value = singular_value.array().sqrt();
         return Vec(svd.matrixU() * singular_value.asDiagonal() * svd.matrixV().transpose());
     }
+    
     static Vector Inverse(const Vector& v) {
         Matrix m = Mat(v);
         auto svd = m.bdcSvd(Eigen::ComputeFullU | Eigen::ComputeFullV);
-        Eigen::VectorXd singular_value = svd.singularValues();
+        Eigen::VectorXd singular_value = svd.singularValues().array() + std::numeric_limits<double>::epsilon();
         singular_value = singular_value.array().inverse();
         return Vec(svd.matrixU() * singular_value.asDiagonal() * svd.matrixV().transpose());
     }
+    
     static Vector Multiple(const Vector& lhs, const Vector& rhs) { 
         return L(lhs) * rhs;
     };
@@ -346,8 +348,18 @@ auto FeasibleStep(const Vector& C, const Matrix& A, const Vector& b0,
 
   return std::tuple<Vector, Vector, Vector>(delta_x, dy, delta_s);
 }
+
+
+auto CenteringStepImpl(const Eigen::SparseMatrix<double>& A, const Eigen::VectorXd& X, const Eigen::VectorXd& S, double mu);
+
+
+template <class Matrix, class Vector>
+auto CenteringStep(const Matrix& A, const Vector& X, const Vector&S, double mu, SemiDefineSpace ) {
+    return CenteringStepImpl(A, X, S, mu);
+}
+
 template <class ConicSpace, class Matrix, class Vector>
-auto CenteringStep(const Matrix& A, const Vector& X, const Vector&S, double mu) {
+auto CenteringStep(const Matrix& A, const Vector& X, const Vector&S, double mu, ConicSpace) {
 
   Vector X_sqrt = ConicSpace::Sqrt(X);
   Vector temp = ConicSpace::Sqrt(ConicSpace::Inverse(ConicSpace::P(X_sqrt, X_sqrt, S)));
@@ -406,7 +418,7 @@ void FullNTStepIMP(const Vector& C,const Matrix& A, const Vector& b,Vector& X, C
     double zeta = 5.0;
     //
     double mu0 = zeta * zeta;
-    double epsilon = 1e-8;
+    double epsilon = 1e-7;
 
     double theta = 1.0 / std::sqrt(2 * X.rows());
     double delta = 1.0;
@@ -448,10 +460,12 @@ void FullNTStepIMP(const Vector& C,const Matrix& A, const Vector& b,Vector& X, C
         // Centering Path
         while (delta_distance > 0.5) {
             std::cout << "Delta Distance : " << delta_distance << std::endl; 
-            auto [delta_X, delta_y, delta_S] = CenteringStep<ConicSpace>(A, X, S, mu);
+            auto [delta_X, delta_y, delta_S] = CenteringStep(A, X, S, mu, ConicSpace{});
             X += delta_X;
             y += delta_y;
             S += delta_S;
+            std::cout << "X is feasible : " << ConicSpace::Varify(X) << std::endl;
+            std::cout << "S is feasible : " << ConicSpace::Varify(S) << std::endl;
             Vector v = ComputeV<ConicSpace>(X, S, mu);
             delta_distance =  0.5 * ConicSpace::Norm(ConicSpace::Inverse(v) - v); 
         }
