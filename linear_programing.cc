@@ -260,10 +260,88 @@ void LPSolver2(const Eigen::VectorXd& c, const Eigen::MatrixXd& A,
 
 
 
-void SDPSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A, const Eigen::VectorXd& b, Eigen::MatrixXd& X) {
+void SDPSolver(const Eigen::VectorXd& c, const Eigen::SparseMatrix<double>& A, const Eigen::VectorXd& b, Eigen::MatrixXd& X) {
   Eigen::VectorXd x(X.rows() * X.cols());
   std::cout << "FullNTStepIMP Solver" << std::endl;
   FullNTStepIMP(c, A, b, x, SemiDefineSpace{});
   std::cout << "FullNTStepIMP Solver Finish" << std::endl;
   X = SemiDefineSpace::Mat(x);
+}
+auto FeasibleStep(const Eigen::VectorXd& C, const Eigen::SparseMatrix<double>& A, const Eigen::VectorXd& b0,
+                  const Eigen::VectorXd& X0, const Eigen::VectorXd& y0, const Eigen::VectorXd& S0,
+                  const Eigen::VectorXd& X, const Eigen::VectorXd& S,
+                  double delta, double mu0, double theta) {
+    using namespace Eigen;
+auto start = std::chrono::high_resolution_clock::now();
+
+VectorXd X_sqrt = SemiDefineSpace::Sqrt(X);
+VectorXd temp = SemiDefineSpace::Sqrt(SemiDefineSpace::Inverse(SemiDefineSpace::P(X_sqrt, X_sqrt, S)));
+VectorXd w = SemiDefineSpace::P(X_sqrt, X_sqrt, temp);
+
+Eigen::MatrixXd Pw_sqrt = SemiDefineSpace::P(SemiDefineSpace::Sqrt(w));
+Eigen::MatrixXd Pw_sqrt_inv = SemiDefineSpace::P(SemiDefineSpace::Sqrt(SemiDefineSpace::Inverse(w)));
+Eigen::MatrixXd Pw = SemiDefineSpace::P(w);
+
+VectorXd rb = b0 - A * X0;
+VectorXd rc = C - SparseMatrix<double>(A.transpose()) * y0 - S0;
+double mu = delta * mu0;
+double inverse_sqrt_mu = 1.0 / (std::sqrt(mu) + std::numeric_limits<double>::epsilon());
+//  | a  0   0 |  | dx |   |theta * delta * rb|                                | prim |
+//  | 0  b   I |* | dy | = | 1.0 / sqrt(mu) * theta * delta * P(w)^0.5 * rc| = | dual |
+//  | I  0   I |  | ds |   | (1 - theta) * v^(-1)  - v|                        | comp |
+//   where a = sqrt(mu) * A * P(w)^0.5
+//        b = 1.0 / sqrt(mu) * P(w)^0.5 * A^T
+
+VectorXd v = inverse_sqrt_mu * Pw_sqrt * S;
+std::cout << "Sparse Delta Distance : " << 0.5 * SemiDefineSpace::Norm(SemiDefineSpace::Inverse(v) - v) << std::endl;
+    
+MatrixXd a = std::sqrt(mu) * A * Pw_sqrt;
+MatrixXd b = inverse_sqrt_mu * inverse_sqrt_mu * a.transpose(); // Pw_sqrt * A.transpose() and Pw_sqrt is Symmetry
+
+VectorXd prim = theta * delta * rb;
+VectorXd dual = inverse_sqrt_mu * theta * delta * Pw_sqrt * rc;
+VectorXd comp = ((1 - theta) * SemiDefineSpace::Inverse(v) - v);
+//std::cout << "Prim : " << prim << std::endl;
+//std::cout << "dual : " << dual << std::endl;
+//std::cout << "comp : " << comp << std::endl;
+//std::cout << "a : " << a << std::endl;
+//std::cout << "b : " << b << std::endl;
+auto end = std::chrono::high_resolution_clock::now();
+std::cout << "Sparse Build Problem elapse : " << (end - start).count() / 1000000 << " ms" << std::endl;
+start = std::chrono::high_resolution_clock::now();
+// Using Schur Complement
+//  a * b * dy = prim + a * (dual - comp)
+//  since a * b = A * P(w) * A^T
+//  prim + a * (dual - comp) = theta * delta * (rb - A * P(w) * rc) - mu * (1 - theta) * A * P(w) * X^(-1) + A * P(w) * S
+//  it is better to solve this linear equation with Cholesky Factorization
+//
+//  dx = b * dy - dual + comp
+//   ds = comp - dx
+//Vector dy = (a * b).fullPivHouseholderQr().solve(prim + a * (dual - comp));
+
+//Vector residual = theta *delta * (rb + A * Pw * rc) - mu * (1 - theta) * A * Pw * ConicSpace::Inverse(X) + A * Pw * S;
+VectorXd dy = (A * Pw * SparseMatrix<double>(A.transpose())).ldlt().solve(prim + a * (dual - comp));
+//Vector dy = (A * Pw * A.transpose()).ldlt().solve(residual);
+//std::cout << "dy : " << dy << std::endl;
+VectorXd dx = b * dy - dual + comp;
+//std::cout << "dx : " << dx << std::endl;
+VectorXd ds = dual - b * dy;
+//std::cout << "ds : " << ds << std::endl;
+end = std::chrono::high_resolution_clock::now();
+std::cout << "Sparse Solving elapse : " << (end - start).count() / 1000000  << " ms"<< std::endl;
+
+std::printf("Sparse Feasible Solution\n");
+std::printf("Sparse delta : %f\n", delta);
+std::printf("dy solution error = %f\n", (A * Pw * SparseMatrix<double>(A.transpose()) * dy - (prim + a * (dual - comp))).norm());
+std::printf("Norm (a * dx - prim) = %f\n", (a * dx - prim).norm());
+std::printf("Norm (b * dy + ds - dual) = %f\n", (b * dy + ds - dual).norm());
+std::printf("Norm (dx + ds - comp) = %f\n", (dx + ds - comp).norm());
+std::printf("<dx, ds> = %f\n", dx.dot(ds));
+
+
+VectorXd delta_x = std::sqrt(mu) * Pw_sqrt * dx;
+VectorXd delta_s = std::sqrt(mu) * Pw_sqrt_inv * ds;
+
+return std::tuple<VectorXd, VectorXd, VectorXd>(delta_x, dy, delta_s);
+
 }

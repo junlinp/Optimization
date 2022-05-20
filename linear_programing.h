@@ -65,7 +65,7 @@ void SymmetricSolver2(const Eigen::MatrixXd C,
                       const std::vector<Eigen::MatrixXd>& A,
                       const Eigen::VectorXd& b, Eigen::MatrixXd& x);
 
-void SDPSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A, const Eigen::VectorXd& b, Eigen::MatrixXd& X);
+void SDPSolver(const Eigen::VectorXd& c, const Eigen::SparseMatrix<double>& A, const Eigen::VectorXd& b, Eigen::MatrixXd& X);
 
 
 class OrthantSpace {
@@ -249,6 +249,19 @@ public:
     }
 };
 
+auto FeasibleStep(const Eigen::VectorXd& C, const Eigen::SparseMatrix<double>& A, const Eigen::VectorXd& b0,
+                  const Eigen::VectorXd& X0, const Eigen::VectorXd& y0, const Eigen::VectorXd& S0,
+                  const Eigen::VectorXd& X, const Eigen::VectorXd& S,
+                  double delta, double mu0, double theta);
+
+template <class Matrix, class Vector>
+auto FeasibleStep(const Vector& C, const Matrix& A, const Vector& b0,
+                  const Vector& X0, const Vector& y0, const Vector& S0,
+                  const Vector& X, const Vector& S,
+                  double delta, double mu0, double theta, SemiDefineSpace) {
+    return FeasibleStep(C, A, b0, X0, y0, S0, X, S, delta, mu0, theta);
+}
+                 
 template <class Matrix, class Vector, class ConicSpace>
 auto FeasibleStep(const Vector& C, const Matrix& A, const Vector& b0,
                   const Vector& X0, const Vector& y0, const Vector& S0,
@@ -345,8 +358,8 @@ auto CenteringStep(const Matrix& A, const Vector& X, const Vector&S, double mu) 
   double inverse_sqrt_mu = 1.0 / (std::sqrt(mu));
   Vector v = inverse_sqrt_mu * Pw_sqrt * S;
   std::cout << "Delta Distance : " << 0.5 * ConicSpace::Norm(ConicSpace::Inverse(v) - v) << std::endl; 
-  Matrix a = std::sqrt(mu) * A * Pw_sqrt;
-  Matrix b = inverse_sqrt_mu * inverse_sqrt_mu * a.transpose(); // Pw_sqrt * A.transpose() and Pw_sqrt is Symmetry
+  Eigen::MatrixXd a = std::sqrt(mu) * (A * Pw_sqrt);
+  Eigen::MatrixXd b = inverse_sqrt_mu * inverse_sqrt_mu * a.transpose(); // Pw_sqrt * A.transpose() and Pw_sqrt is Symmetry
 
   Vector comp = (ConicSpace::Inverse(v) - v);
 

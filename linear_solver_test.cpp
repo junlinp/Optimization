@@ -181,8 +181,9 @@ TEST(SDP, Maximal_Complementarity_2) {
     Eigen::VectorXd b(1);
     b(0) = n;
     Eigen::MatrixXd X(2 * n, 2 * n);
-    SDPSolver(SemiDefineSpace::Vec(Mat_c), SemiDefineSpace::Vec(A).transpose(), b, X);
+    //SDPSolver(SemiDefineSpace::Vec(Mat_c), SemiDefineSpace::Vec(A).transpose(), b, X);
 }
+
 TEST(SDP, HAMMING_7_5_6) {
 
     auto [c, A, b] = Hamming_Load_Data("7_5_6");
