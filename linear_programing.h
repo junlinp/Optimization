@@ -65,7 +65,7 @@ void SymmetricSolver2(const Eigen::MatrixXd C,
                       const std::vector<Eigen::MatrixXd>& A,
                       const Eigen::VectorXd& b, Eigen::MatrixXd& x);
 
-void SDPSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A, const Eigen::VectorXd& b, Eigen::MatrixXd& X);
+void SDPSolver(const Eigen::VectorXd& c, const Eigen::SparseMatrix<double>& A, const Eigen::VectorXd& b, Eigen::MatrixXd& X);
 
 
 class OrthantSpace {
@@ -203,13 +203,15 @@ public:
         singular_value = singular_value.array().sqrt();
         return Vec(svd.matrixU() * singular_value.asDiagonal() * svd.matrixV().transpose());
     }
+    
     static Vector Inverse(const Vector& v) {
         Matrix m = Mat(v);
         auto svd = m.bdcSvd(Eigen::ComputeFullU | Eigen::ComputeFullV);
-        Eigen::VectorXd singular_value = svd.singularValues();
+        Eigen::VectorXd singular_value = svd.singularValues().array() + std::numeric_limits<double>::epsilon();
         singular_value = singular_value.array().inverse();
         return Vec(svd.matrixU() * singular_value.asDiagonal() * svd.matrixV().transpose());
     }
+    
     static Vector Multiple(const Vector& lhs, const Vector& rhs) { 
         return L(lhs) * rhs;
     };
@@ -249,6 +251,19 @@ public:
     }
 };
 
+auto FeasibleStep(const Eigen::VectorXd& C, const Eigen::SparseMatrix<double>& A, const Eigen::VectorXd& b0,
+                  const Eigen::VectorXd& X0, const Eigen::VectorXd& y0, const Eigen::VectorXd& S0,
+                  const Eigen::VectorXd& X, const Eigen::VectorXd& S,
+                  double delta, double mu0, double theta);
+
+template <class Matrix, class Vector>
+auto FeasibleStep(const Vector& C, const Matrix& A, const Vector& b0,
+                  const Vector& X0, const Vector& y0, const Vector& S0,
+                  const Vector& X, const Vector& S,
+                  double delta, double mu0, double theta, SemiDefineSpace) {
+    return FeasibleStep(C, A, b0, X0, y0, S0, X, S, delta, mu0, theta);
+}
+                 
 template <class Matrix, class Vector, class ConicSpace>
 auto FeasibleStep(const Vector& C, const Matrix& A, const Vector& b0,
                   const Vector& X0, const Vector& y0, const Vector& S0,
@@ -333,8 +348,18 @@ auto FeasibleStep(const Vector& C, const Matrix& A, const Vector& b0,
 
   return std::tuple<Vector, Vector, Vector>(delta_x, dy, delta_s);
 }
+
+
+auto CenteringStepImpl(const Eigen::SparseMatrix<double>& A, const Eigen::VectorXd& X, const Eigen::VectorXd& S, double mu);
+
+
+template <class Matrix, class Vector>
+auto CenteringStep(const Matrix& A, const Vector& X, const Vector&S, double mu, SemiDefineSpace ) {
+    return CenteringStepImpl(A, X, S, mu);
+}
+
 template <class ConicSpace, class Matrix, class Vector>
-auto CenteringStep(const Matrix& A, const Vector& X, const Vector&S, double mu) {
+auto CenteringStep(const Matrix& A, const Vector& X, const Vector&S, double mu, ConicSpace) {
 
   Vector X_sqrt = ConicSpace::Sqrt(X);
   Vector temp = ConicSpace::Sqrt(ConicSpace::Inverse(ConicSpace::P(X_sqrt, X_sqrt, S)));
@@ -345,8 +370,8 @@ auto CenteringStep(const Matrix& A, const Vector& X, const Vector&S, double mu) 
   double inverse_sqrt_mu = 1.0 / (std::sqrt(mu));
   Vector v = inverse_sqrt_mu * Pw_sqrt * S;
   std::cout << "Delta Distance : " << 0.5 * ConicSpace::Norm(ConicSpace::Inverse(v) - v) << std::endl; 
-  Matrix a = std::sqrt(mu) * A * Pw_sqrt;
-  Matrix b = inverse_sqrt_mu * inverse_sqrt_mu * a.transpose(); // Pw_sqrt * A.transpose() and Pw_sqrt is Symmetry
+  Eigen::MatrixXd a = std::sqrt(mu) * (A * Pw_sqrt);
+  Eigen::MatrixXd b = inverse_sqrt_mu * inverse_sqrt_mu * a.transpose(); // Pw_sqrt * A.transpose() and Pw_sqrt is Symmetry
 
   Vector comp = (ConicSpace::Inverse(v) - v);
 
@@ -393,7 +418,7 @@ void FullNTStepIMP(const Vector& C,const Matrix& A, const Vector& b,Vector& X, C
     double zeta = 5.0;
     //
     double mu0 = zeta * zeta;
-    double epsilon = 1e-8;
+    double epsilon = 1e-7;
 
     double theta = 1.0 / std::sqrt(2 * X.rows());
     double delta = 1.0;
@@ -435,10 +460,12 @@ void FullNTStepIMP(const Vector& C,const Matrix& A, const Vector& b,Vector& X, C
         // Centering Path
         while (delta_distance > 0.5) {
             std::cout << "Delta Distance : " << delta_distance << std::endl; 
-            auto [delta_X, delta_y, delta_S] = CenteringStep<ConicSpace>(A, X, S, mu);
+            auto [delta_X, delta_y, delta_S] = CenteringStep(A, X, S, mu, ConicSpace{});
             X += delta_X;
             y += delta_y;
             S += delta_S;
+            std::cout << "X is feasible : " << ConicSpace::Varify(X) << std::endl;
+            std::cout << "S is feasible : " << ConicSpace::Varify(S) << std::endl;
             Vector v = ComputeV<ConicSpace>(X, S, mu);
             delta_distance =  0.5 * ConicSpace::Norm(ConicSpace::Inverse(v) - v); 
         }

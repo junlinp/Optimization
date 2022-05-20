@@ -177,12 +177,28 @@ TEST(SDP, Maximal_Complementarity_2) {
     Mat_c.setIdentity();
     Mat_c.block(n, n, n, n) *= 2.0;
 
-    Eigen::MatrixXd A = Eigen::MatrixXd::Identity(2 * n, 2 * n);
+    //Eigen::MatrixXd A = Eigen::MatrixXd::Identity(2 * n, 2 * n);
+    Eigen::SparseMatrix<double> A(1, 2 * n * 2 * n);
+    for(size_t i = 0; i < n; i++) {
+        A.insert(0, i * 2 * n + i) = 1.0;
+    }
     Eigen::VectorXd b(1);
     b(0) = n;
     Eigen::MatrixXd X(2 * n, 2 * n);
-    SDPSolver(SemiDefineSpace::Vec(Mat_c), SemiDefineSpace::Vec(A).transpose(), b, X);
+    SDPSolver(SemiDefineSpace::Vec(Mat_c), A, b, X);
+    
+    for(size_t row = 0; row < 2 * n; row++) {
+        for (size_t col = 0; col < 2 * n; col++) {
+            if (row < n && col < n && row == col) {
+                EXPECT_NEAR(X(row, col), 1.0, 1e-6);
+            } else {
+                EXPECT_NEAR(X(row, col), 0.0, 1e-6);
+            }
+        }
+        
+    }
 }
+
 TEST(SDP, HAMMING_7_5_6) {
 
     auto [c, A, b] = Hamming_Load_Data("7_5_6");
@@ -190,6 +206,8 @@ TEST(SDP, HAMMING_7_5_6) {
     std::cout << "c rows : " << c.rows() << std::endl;
     std::cout << "A " << A.rows() << ", " << A.cols() << std::endl;
     std::cout << "b rows : " << b.rows() << std::endl;
+    
+    //std::cout << Eigen::SparseMatrix<double>(A * Eigen::SparseMatrix<double>(A.transpose())).nonZeros() << std::endl;
     // |V| = 128
     // |E| = 1793
     // Optimizaed Value : 422/3
