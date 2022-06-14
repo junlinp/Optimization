@@ -222,7 +222,7 @@ public:
     }
 
     static double Norm(const Vector& v) {
-        return std::sqrt(Trace(v, v));
+        return v.norm();
     }
 
     static Vector Vec(const Matrix& mat) { 
@@ -394,11 +394,10 @@ Eigen::VectorXd ComputeV(const Eigen::VectorXd& X,const Eigen::VectorXd& S,doubl
   Eigen::VectorXd X_sqrt = ConicSpace::Sqrt(X);
   Eigen::VectorXd temp = ConicSpace::Sqrt(ConicSpace::Inverse(ConicSpace::P(X_sqrt, X_sqrt, S)));
   Eigen::VectorXd w = ConicSpace::P(X_sqrt, X_sqrt, temp);
-
-  Eigen::MatrixXd Pw_sqrt = ConicSpace::P(ConicSpace::Sqrt(w));
+  Eigen::VectorXd w_sqrt = ConicSpace::Sqrt(w);
   double inverse_sqrt_mu = 1.0 / (std::sqrt(mu) + std::numeric_limits<double>::epsilon());
-
-  return inverse_sqrt_mu * Pw_sqrt * S;
+  //return inverse_sqrt_mu * Pw_sqrt * S;
+  return inverse_sqrt_mu * ConicSpace::P(w_sqrt, S, w_sqrt);
 }
 
 template<class Matrix, class Vector, class ConicSpace>
@@ -456,7 +455,8 @@ void FullNTStepIMP(const Vector& C,const Matrix& A, const Vector& b,Vector& X, C
 
         Vector v = ComputeV<ConicSpace>(X, S, mu);
         double delta_distance =  0.5 * ConicSpace::Norm(ConicSpace::Inverse(v) - v); 
-
+        std::cout << "Main Thread Delta Distance : " << delta_distance << std::endl; 
+        
         // Centering Path
         while (delta_distance > 0.5) {
             std::cout << "Delta Distance : " << delta_distance << std::endl; 
@@ -480,3 +480,5 @@ void FullNTStepIMP(const Vector& C,const Matrix& A, const Vector& b,Vector& X, C
     //std::printf("Norm of Primal Constraint %f\n", Norm(A * X.ToLinearVector() - b));
     //std::printf("Norm of Dual Constraint %f\n", Norm(C - A.transpose() * y - S.ToLinearVector()));
 }
+
+void SDPIIMP(const Eigen::VectorXd& C, const Eigen::SparseMatrix<double>& A, const Eigen::VectorXd& b, Eigen::VectorXd& X);
