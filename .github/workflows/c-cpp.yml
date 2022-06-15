@@ -14,15 +14,15 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Setup Eigen3
-      run: git clone git clone "https://gitlab.com/libeigen/eigen.git"
-    - name: Install Eigen3
-      run: mkdir -p eigen/build && cd eigen/build && cmake .. && make install && cd ..
+     # You may pin to the exact commit or the version.
+     # uses: kupns-aka-kupa/setup-eigen3@66f8187cf6fdecffecdb8308af9c0d01ec29c36d
+      uses: kupns-aka-kupa/setup-eigen3@v1
       
     - name: Googletest installer
       uses: MarkusJx/googletest-installer@v1.1
       
     - name: cmake configuration
-      run: mkdir -p build && cd build && cmake ..
+      run: cd ~ && mkdir -p build && cd build && cmake ..
     - name: make check
       run: cd build && make
 
