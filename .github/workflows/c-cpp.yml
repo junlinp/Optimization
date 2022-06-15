@@ -14,7 +14,9 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Setup Eigen3
-      run: git clone git clone https://gitlab.com/libeigen/eigen.git && mkdir -p eigen/build && cd eigen/build && cmake .. && make install && cd ..
+      run: git clone git clone https://gitlab.com/libeigen/eigen.git
+    - name: Install Eigen3
+      run: mkdir -p eigen/build && cd eigen/build && cmake .. && make install && cd ..
       
     - name: Googletest installer
       uses: MarkusJx/googletest-installer@v1.1
