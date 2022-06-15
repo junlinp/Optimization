@@ -19,7 +19,7 @@ jobs:
      # uses: kupns-aka-kupa/setup-eigen3@v1
       run: git clone https://gitlab.com/libeigen/eigen.git
     - name: Install Eigen3
-      run: cmake --install-prefix ./Eigen3 -B eigen3_build -S ./eigen && cd eigen3_build && make install
+      run: cmake -DCMAKE_INSTALL_PREFIX=Eigen3 -B eigen3_build -S ./eigen && cd eigen3_build && make install
       
     - name: Googletest installer
       uses: MarkusJx/googletest-installer@v1.1
