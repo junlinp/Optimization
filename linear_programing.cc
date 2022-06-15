@@ -25,7 +25,7 @@ using namespace Eigen;
         H_hat.block(m,0, n, m) = -A.transpose();
         H_hat.block(m, m + n, n, 1) = c;
         
-        H_hat.block(m + n, 0, 1, n) = b.transpose();
+        H_hat.block(m + n, 0, 1, m) = b.transpose();
         H_hat.block(m + n, m, 1, n) = -c.transpose();
         
         VectorXd r = VectorXd::Ones(m + n + 1, 1) - H_hat * VectorXd::Ones(m + n + 1, 1);
@@ -109,12 +109,42 @@ using namespace Eigen;
  
  
  */
+
+template<class T>
+T linsolve(const Eigen::MatrixXd& A, const T& b) {
+        return T{A.fullPivHouseholderQr().solve(b)};
+}
+
+Eigen::VectorXd FeasibleDualLogarithmSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A, const Eigen::VectorXd& b, const Eigen::VectorXd& initial_x, const Eigen::VectorXd& initial_y, const Eigen::VectorXd& initial_s) {
+    // H is the null space of A
+    size_t m = A.rows(), n = A.cols();
+    Eigen::MatrixXd V = A.bdcSvd(Eigen::ComputeFullV).matrixV();
+    
+    Eigen::MatrixXd H = V.block(0, m, n, n - m).transpose();
+    Eigen::VectorXd e(n);
+    e.setOnes();
+    Eigen::MatrixXd I = Eigen::MatrixXd::Identity(n, n);
+    
+    double theta = 1.0 / (3 * std::sqrt(n));
+    double mu = 1.0;
+    double epsilon = 1e-10;
+    Eigen::VectorXd s = initial_s;
+    while (n * mu >= epsilon) {
+        Eigen::MatrixXd S = s.asDiagonal();
+        Eigen::MatrixXd t = linsolve<Eigen::MatrixXd>(H * S * S * H.transpose(), H * S);
+        Eigen::VectorXd delta_s = S * (I - S * H.transpose() * t) * (e - S*initial_x / mu);
+        mu = (1 - theta) * mu;
+        s = s + delta_s;
+    }
+    return s.cwiseInverse() * mu;
+}
+
 void DualLogarithmSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A, const Eigen::VectorXd& b, Eigen::VectorXd& x) {
     size_t m = A.rows(), n = A.cols();
     Eigen::MatrixXd permutation_matrix = internal::Permutation(A);
-    Eigen::MatrixXd A_dot = A * permutation;
-    Eigen::MatrixXd Ai = A.block(0, 0, m, m);
-    Eigen::MatrixXd Aj = A.block(0, m, m, n - m);
+    Eigen::MatrixXd A_ = (A * permutation_matrix).eval();
+    Eigen::MatrixXd Ai = A_.block(0, 0, m, m);
+    Eigen::MatrixXd Aj = A_.block(0, m, m, n - m);
     Eigen::VectorXd ci = c.block(0,0, m, 1);
     Eigen::VectorXd cj = c.block(m, 0, n - m, 1);
     
@@ -129,7 +159,38 @@ void DualLogarithmSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A, con
     //       z >= 0, s >= 0
     //     z = mu*e and s = mu*e is the initial feasible solution
     //
+    size_t feasible_n = H.rows();
+    Eigen::MatrixXd A_feasible(feasible_n, feasible_n * 2);
+    A_feasible.block(0, 0, feasible_n, feasible_n) = H;
+    A_feasible.block(0, feasible_n, feasible_n, feasible_n) = -Eigen::MatrixXd::Identity(feasible_n, feasible_n);
+    
+    Eigen::VectorXd c_feasible(feasible_n * 2);
+    c_feasible << q, Eigen::VectorXd::Zero(feasible_n, 1);
+    
+    Eigen::VectorXd b_feasible = -q;
+    
+    Eigen::VectorXd x_feasible = Eigen::VectorXd::Ones(feasible_n * 2, 1);
+    Eigen::VectorXd s_feasible = Eigen::VectorXd::Ones(feasible_n * 2, 1);
+    Eigen::VectorXd y_feasible = Eigen::VectorXd::Ones(feasible_n, 1);
+    
+    Eigen::VectorXd solution = FeasibleDualLogarithmSolver(c_feasible, A_feasible, b_feasible, x_feasible, y_feasible, s_feasible);
+    Eigen::VectorXd ksi = solution.block(0, 0, feasible_n, 1);
+    
+    Eigen::VectorXd y = ksi.block(0, 0, m, 1);
+    Eigen::VectorXd xj = ksi.block(m, 0, n - m, 1);
+    double k = ksi(n);
+    
+    // TODO(junlinp): check whether is solvable.
+    // xj = n - m
+    // Aj = m
+    
+    xj = xj / k;
+    Eigen::VectorXd xi = linsolve<Eigen::VectorXd>(Ai, b - Aj * xj);
+    x << xi, xj;
+    x = permutation_matrix * x;
 }
+
+
 void LPSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A,
               const Eigen::VectorXd& b, Eigen::VectorXd& x) {
   size_t n = c.rows();
