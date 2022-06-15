@@ -139,7 +139,8 @@ Eigen::VectorXd FeasibleDualLogarithmSolver(const Eigen::VectorXd& c, const Eige
     return s.cwiseInverse() * mu;
 }
 
-void DualLogarithmSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A, const Eigen::VectorXd& b, Eigen::VectorXd& x) {
+template<class Functor>
+void FeasibleSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A, const Eigen::VectorXd& b, Eigen::VectorXd& x, Functor functor) {
     size_t m = A.rows(), n = A.cols();
     Eigen::MatrixXd permutation_matrix = internal::Permutation(A);
     Eigen::MatrixXd A_ = (A * permutation_matrix).eval();
@@ -173,7 +174,7 @@ void DualLogarithmSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A, con
     Eigen::VectorXd s_feasible = Eigen::VectorXd::Ones(feasible_n * 2, 1);
     Eigen::VectorXd y_feasible = Eigen::VectorXd::Ones(feasible_n, 1);
     
-    Eigen::VectorXd solution = FeasibleDualLogarithmSolver(c_feasible, A_feasible, b_feasible, x_feasible, y_feasible, s_feasible);
+    Eigen::VectorXd solution = functor(c_feasible, A_feasible, b_feasible, x_feasible, y_feasible, s_feasible);
     Eigen::VectorXd ksi = solution.block(0, 0, feasible_n, 1);
     
     Eigen::VectorXd y = ksi.block(0, 0, m, 1);
@@ -190,6 +191,10 @@ void DualLogarithmSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A, con
     x = permutation_matrix * x;
 }
 
+
+void DualLogarithmSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A, const Eigen::VectorXd& b, Eigen::VectorXd& x) {
+    FeasibleSolver(c, A, b, x, FeasibleDualLogarithmSolver);
+}
 
 void LPSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A,
               const Eigen::VectorXd& b, Eigen::VectorXd& x) {
