@@ -22,7 +22,7 @@ jobs:
       uses: MarkusJx/googletest-installer@v1.1
       
     - name: cmake configuration
-      run: pwd && ls && mkdir -p build && cd build && cmake ..
+      run: pwd && ls && echo CMakeLists.txt && mkdir -p build && cd build && cmake ..
     - name: make check
       run: cd build && make
 
