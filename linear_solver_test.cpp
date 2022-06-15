@@ -125,11 +125,50 @@ TEST(LP2, Test_Case3) {
     EXPECT_NEAR(x(4), 0.0, EPSILON);
     EXPECT_NEAR(c.dot(x), -36.0, EPSILON);
 }
-TEST(SOCP, Test_Case1) {
 
+TEST(DualLogarithmSolver, Simple_case) {
+    Eigen::VectorXd c(3);
+    c << 1, 1, 1;
+    Eigen::MatrixXd A(2, 3);
+    A << 1, -1, 0, 0, 0, 1;
+    Eigen::VectorXd b(2);
+    b << 1, 1;
+    Eigen::VectorXd x(3);
+    x.setZero();
+    DualLogarithmSolver(c, A, b, x);
+    
+    EXPECT_NEAR(x(0), 1.0, 1e-6);
+    EXPECT_NEAR(x(1), 0.0, 1e-6);
+    EXPECT_NEAR(x(2), 1.0, 1e-6);
+}
+
+TEST(DualLogarithmSolver, Test_Case3) {
+    
+    Eigen::VectorXd c(5);
+    c << -3.0, -5.0, 0.0, 0.0, 0.0;
+    Eigen::MatrixXd A(3, 5);
+    A << 1.0, 0.0, 1.0, 0.0, 0.0,
+         0.0, 2.0, 0.0, 1.0, 0.0,
+         3.0, 2.0, 0.0, 0.0, 1.0;
+    Eigen::VectorXd b(3);
+    b << 3,
+    12,
+    18;
+    Eigen::VectorXd x(5);
+    DualLogarithmSolver(c,A, b, x);
+    // Should be (2.0, 6.0, 1.0, 0.0, 0.0)
+    // Should be -36.0
+    double EPSILON = 1e-7;
+    EXPECT_NEAR(x(0), 2.0, EPSILON);
+    EXPECT_NEAR(x(1), 6.0, EPSILON);
+    EXPECT_NEAR(x(2), 1.0, EPSILON);
+    EXPECT_NEAR(x(3), 0.0, EPSILON);
+    EXPECT_NEAR(x(4), 0.0, EPSILON);
+    EXPECT_NEAR(c.dot(x), -36.0, EPSILON);
 }
 
 
+/*
 auto Hamming_Load_Data(const std::string& data_set) {
     std::string direct = HAMMING_DATASET_PATH + std::string("/") + data_set;
     std::vector<double> c_coeff;
@@ -169,7 +208,7 @@ auto Hamming_Load_Data(const std::string& data_set) {
     Eigen::SparseMatrix<double> A(m, n);
     A.setFromTriplets(triple.begin(), triple.end());
 
-    return std::tuple<Eigen::VectorXd, Eigen::SparseMatrix<double>, Eigen::VectorXd>(c, A, b);
+    return std::tuple<Eigen::VectorXd, Eigen::SparseMatrix<double>, Eigen::VectorXd>(-c, A, b);
 }
 TEST(SDP, Maximal_Complementarity_2) {
     size_t n = 2;
@@ -198,7 +237,141 @@ TEST(SDP, Maximal_Complementarity_2) {
         
     }
 }
+TEST(SDP, Maximal_Complementarity_8) {
+    size_t n = 8;
+    Eigen::MatrixXd Mat_c(2 * n, 2 * n);
+    Mat_c.setIdentity();
+    Mat_c.block(n, n, n, n) *= 2.0;
 
+    //Eigen::MatrixXd A = Eigen::MatrixXd::Identity(2 * n, 2 * n);
+    Eigen::SparseMatrix<double> A(1, 2 * n * 2 * n);
+    for(size_t i = 0; i < n; i++) {
+        A.insert(0, i * 2 * n + i) = 1.0;
+    }
+    Eigen::VectorXd b(1);
+    b(0) = n;
+    Eigen::MatrixXd X(2 * n, 2 * n);
+    SDPSolver(SemiDefineSpace::Vec(Mat_c), A, b, X);
+    
+    for(size_t row = 0; row < 2 * n; row++) {
+        for (size_t col = 0; col < 2 * n; col++) {
+            if (row < n && col < n && row == col) {
+                EXPECT_NEAR(X(row, col), 1.0, 1e-6);
+            } else {
+                EXPECT_NEAR(X(row, col), 0.0, 1e-6);
+            }
+        }
+        
+    }
+}
+TEST(SDP, Maximal_Complementarity_16) {
+    size_t n = 16;
+    Eigen::MatrixXd Mat_c(2 * n, 2 * n);
+    Mat_c.setIdentity();
+    Mat_c.block(n, n, n, n) *= 2.0;
+
+    //Eigen::MatrixXd A = Eigen::MatrixXd::Identity(2 * n, 2 * n);
+    Eigen::SparseMatrix<double> A(1, 2 * n * 2 * n);
+    for(size_t i = 0; i < n; i++) {
+        A.insert(0, i * 2 * n + i) = 1.0;
+    }
+    Eigen::VectorXd b(1);
+    b(0) = n;
+    Eigen::MatrixXd X(2 * n, 2 * n);
+    SDPSolver(SemiDefineSpace::Vec(Mat_c), A, b, X);
+    
+    for(size_t row = 0; row < 2 * n; row++) {
+        for (size_t col = 0; col < 2 * n; col++) {
+            if (row < n && col < n && row == col) {
+                EXPECT_NEAR(X(row, col), 1.0, 1e-6);
+            } else {
+                EXPECT_NEAR(X(row, col), 0.0, 1e-6);
+            }
+        }
+        
+    }
+}
+TEST(SDP, Maximal_Complementarity_32) {
+    size_t n = 32;
+    Eigen::MatrixXd Mat_c(2 * n, 2 * n);
+    Mat_c.setIdentity();
+    Mat_c.block(n, n, n, n) *= 2.0;
+
+    //Eigen::MatrixXd A = Eigen::MatrixXd::Identity(2 * n, 2 * n);
+    Eigen::SparseMatrix<double> A(1, 2 * n * 2 * n);
+    for(size_t i = 0; i < n; i++) {
+        A.insert(0, i * 2 * n + i) = 1.0;
+    }
+    Eigen::VectorXd b(1);
+    b(0) = n;
+    Eigen::MatrixXd X(2 * n, 2 * n);
+    SDPSolver(SemiDefineSpace::Vec(Mat_c), A, b, X);
+    
+    for(size_t row = 0; row < 2 * n; row++) {
+        for (size_t col = 0; col < 2 * n; col++) {
+            if (row < n && col < n && row == col) {
+                EXPECT_NEAR(X(row, col), 1.0, 1e-6);
+            } else {
+                EXPECT_NEAR(X(row, col), 0.0, 1e-6);
+            }
+        }
+        
+    }
+}
+TEST(SDP, Maximal_Complementarity_64) {
+    size_t n = 64;
+    Eigen::MatrixXd Mat_c(2 * n, 2 * n);
+    Mat_c.setIdentity();
+    Mat_c.block(n, n, n, n) *= 2.0;
+
+    //Eigen::MatrixXd A = Eigen::MatrixXd::Identity(2 * n, 2 * n);
+    Eigen::SparseMatrix<double> A(1, 2 * n * 2 * n);
+    for(size_t i = 0; i < n; i++) {
+        A.insert(0, i * 2 * n + i) = 1.0;
+    }
+    Eigen::VectorXd b(1);
+    b(0) = n;
+    Eigen::MatrixXd X(2 * n, 2 * n);
+    SDPSolver(SemiDefineSpace::Vec(Mat_c), A, b, X);
+    
+    for(size_t row = 0; row < 2 * n; row++) {
+        for (size_t col = 0; col < 2 * n; col++) {
+            if (row < n && col < n && row == col) {
+                EXPECT_NEAR(X(row, col), 1.0, 1e-6);
+            } else {
+                EXPECT_NEAR(X(row, col), 0.0, 1e-6);
+            }
+        }
+        
+    }
+}
+TEST(SDP, Maximal_Complementarity_128) {
+    size_t n = 128;
+    Eigen::MatrixXd Mat_c(2 * n, 2 * n);
+    Mat_c.setIdentity();
+    Mat_c.block(n, n, n, n) *= 2.0;
+
+    //Eigen::MatrixXd A = Eigen::MatrixXd::Identity(2 * n, 2 * n);
+    Eigen::SparseMatrix<double> A(1, 2 * n * 2 * n);
+    for(size_t i = 0; i < n; i++) {
+        A.insert(0, i * 2 * n + i) = 1.0;
+    }
+    Eigen::VectorXd b(1);
+    b(0) = n;
+    Eigen::MatrixXd X(2 * n, 2 * n);
+    SDPSolver(SemiDefineSpace::Vec(Mat_c), A, b, X);
+    
+    for(size_t row = 0; row < 2 * n; row++) {
+        for (size_t col = 0; col < 2 * n; col++) {
+            if (row < n && col < n && row == col) {
+                EXPECT_NEAR(X(row, col), 1.0, 1e-6);
+            } else {
+                EXPECT_NEAR(X(row, col), 0.0, 1e-6);
+            }
+        }
+        
+    }
+}
 TEST(SDP, HAMMING_7_5_6) {
 
     auto [c, A, b] = Hamming_Load_Data("7_5_6");
@@ -215,10 +388,9 @@ TEST(SDP, HAMMING_7_5_6) {
     
     SDPSolver(c, A, b, X);
 
-    EXPECT_NEAR(c.dot(SemiDefineSpace::Vec(X)) * 3, 422.0, 1e-5);
+    EXPECT_NEAR(c.dot(SemiDefineSpace::Vec(X)) * 3, -(42 * 3 + 2.0), 1e-5);
 }
 
-/*
 TEST(SDP, HAMMING_8_3_4) {
     // |V| = 256
     // |E| = 16129
@@ -228,7 +400,7 @@ TEST(SDP, HAMMING_8_3_4) {
     size_t vertex = 256;
     Eigen::MatrixXd X(vertex, vertex);
     SDPSolver(c, A, b, X);
-    EXPECT_NEAR(c.dot(SemiDefineSpace::Vec(X)), 25.6, 1e-5);
+    EXPECT_NEAR(c.dot(SemiDefineSpace::Vec(X)), -25.6, 1e-5);
 }
 TEST(SDP, HAMMING_9_8) {
     // |V| = 512
@@ -239,7 +411,7 @@ TEST(SDP, HAMMING_9_8) {
     size_t vertex = 512;
     Eigen::MatrixXd X(vertex, vertex);
     SDPSolver(c, A, b, X);
-    EXPECT_NEAR(c.dot(SemiDefineSpace::Vec(X)), 224, 1e-5);
+    EXPECT_NEAR(c.dot(SemiDefineSpace::Vec(X)), -224, 1e-5);
 }
 TEST(SDP, HAMMING_9_5_6) {
     // |V| = 512
@@ -249,7 +421,7 @@ TEST(SDP, HAMMING_9_5_6) {
     size_t vertex = 512;
     Eigen::MatrixXd X(vertex, vertex);
     SDPSolver(c, A, b, X);
-    EXPECT_NEAR(c.dot(SemiDefineSpace::Vec(X)) * 3, 851, 1e-5);
+    EXPECT_NEAR(c.dot(SemiDefineSpace::Vec(X)) * 3, -(85 * 3 + 1), 1e-5);
 }
 TEST(SDP, HAMMING_10_2) {
 
@@ -260,7 +432,7 @@ TEST(SDP, HAMMING_10_2) {
     size_t vertex = 1024;
     Eigen::MatrixXd X(vertex, vertex);
     SDPSolver(c, A, b, X);
-    EXPECT_NEAR(c.dot(SemiDefineSpace::Vec(X)), 102.4, 1e-5);
+    EXPECT_NEAR(c.dot(SemiDefineSpace::Vec(X)), -102.4, 1e-5);
 }
 TEST(SDP, HAMMING_11_2) {
     // |V| = 2048
@@ -270,7 +442,7 @@ TEST(SDP, HAMMING_11_2) {
     size_t vertex = 2048;
     Eigen::MatrixXd X(vertex, vertex);
     SDPSolver(c, A, b, X);
-    EXPECT_NEAR(c.dot(SemiDefineSpace::Vec(X)) * 3, 1702, 1e-5);
+    EXPECT_NEAR(c.dot(SemiDefineSpace::Vec(X)) * 3, -(170 * 3 + 2), 1e-5);
 }
 */
 
