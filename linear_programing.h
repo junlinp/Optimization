@@ -1,5 +1,4 @@
 //#define EIGEN_USE_LAPACKE
-#define EIGEN_USE_BLAS
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 
