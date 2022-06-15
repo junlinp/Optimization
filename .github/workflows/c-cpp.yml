@@ -19,13 +19,13 @@ jobs:
      # uses: kupns-aka-kupa/setup-eigen3@v1
       run: git clone https://gitlab.com/libeigen/eigen.git
     - name: Install Eigen3
-      run: cmake -B eigen3_build -S ./eigen && cd eigen3_build && make install
+      run: cmake --install-prefix ./Eigen3 -B eigen3_build -S ./eigen && cd eigen3_build && make install
       
     - name: Googletest installer
       uses: MarkusJx/googletest-installer@v1.1
       
     - name: cmake configuration
-      run: cmake -B build .
+      run: cmake -DEigen3_DIR=Eigen3 -B build -S .
     - name: make check
       run: cd build && make
 
