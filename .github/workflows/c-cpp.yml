@@ -27,5 +27,5 @@ jobs:
     - name: cmake configuration
       run: cmake -DEigen3_DIR=Eigen3 -B build -S .
     - name: make check
-      run: cd build && make
+      run: cd build && make && ./Linear_Solver_test
 
