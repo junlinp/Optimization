@@ -5,9 +5,8 @@
 #include "iostream"
 #include <cmath>
 
-#include "Eigen/SparseCholesky"
-#include "Eigen/SparseLU"
-#include "Eigen/IterativeLinearSolvers"
+#include "Eigen/SVD"
+
 namespace internal {
 using namespace Eigen;
     std::pair<Eigen::MatrixXd, Eigen::VectorXd> ToSelfEmbeddingProblem(const Eigen::VectorXd& c,const Eigen::MatrixXd& A, const VectorXd& b) {

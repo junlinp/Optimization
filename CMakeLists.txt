@@ -7,7 +7,7 @@ find_package(GTest REQUIRED)
 #find_package(BLAS REQUIRED)
 #find_package(LAPACK REQUIRED)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
 add_compile_options(-mavx -mavx2 -g -O3)
 add_compile_options(-Wall -Wextra -pedantic )
 add_library(mmio mmio.c mmio.h)
