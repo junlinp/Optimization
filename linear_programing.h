@@ -32,6 +32,7 @@ void LPSolver2(const Eigen::VectorXd& c, const Eigen::MatrixXd& A,
 
 
 void DualLogarithmSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A, const Eigen::VectorXd& b, Eigen::VectorXd& x);
+void PrimDualLogarithmSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A, const Eigen::VectorXd& b, Eigen::VectorXd& x);
 
 void RobustLPSolver(const Eigen::VectorXd& c,
                     const std::vector<Eigen::VectorXd>& A,

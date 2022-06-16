@@ -128,14 +128,83 @@ Eigen::VectorXd FeasibleDualLogarithmSolver(const Eigen::VectorXd& c, const Eige
     double mu = 1.0;
     double epsilon = 1e-10;
     Eigen::VectorXd s = initial_s;
+    size_t epoch  = 0;
     while (n * mu >= epsilon) {
         Eigen::MatrixXd S = s.asDiagonal();
         Eigen::MatrixXd t = linsolve<Eigen::MatrixXd>(H * S * S * H.transpose(), H * S);
         Eigen::VectorXd delta_s = S * (I - S * H.transpose() * t) * (e - S*initial_x / mu);
         mu = (1 - theta) * mu;
         s = s + delta_s;
+        epoch ++;
     }
+    std::printf("Feasible Dual Logarithm Method %zu epochs\n", epoch);
     return s.cwiseInverse() * mu;
+}
+
+
+Eigen::VectorXd FeasibleDualLogarithmWithAdaptiveUpdateSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A, const Eigen::VectorXd& b, const Eigen::VectorXd& initial_x, const Eigen::VectorXd& initial_y, const Eigen::VectorXd& initial_s) {
+    // H is the null space of A
+    size_t m = A.rows(), n = A.cols();
+    Eigen::MatrixXd V = A.bdcSvd(Eigen::ComputeFullV).matrixV();
+    
+    Eigen::MatrixXd H = V.block(0, m, n, n - m).transpose();
+    Eigen::VectorXd e(n);
+    e.setOnes();
+    Eigen::MatrixXd I = Eigen::MatrixXd::Identity(n, n);
+    
+    double theta = 1.0 / (3 * std::sqrt(n));
+    double mu = 1.0;
+    double epsilon = 1e-10;
+    double tau = 1.0 / std::sqrt(2);
+    Eigen::VectorXd s = initial_s;
+    size_t epoch  = 0;
+    while (n * mu >= epsilon) {
+        Eigen::MatrixXd S = s.asDiagonal();
+        Eigen::MatrixXd t = linsolve<Eigen::MatrixXd>(H * S * S * H.transpose(), H * S);
+        Eigen::MatrixXd Project = (I - S * H.transpose() * t);
+        //Eigen::VectorXd delta_s = S *  * (e - S*initial_x / mu);
+        Eigen::VectorXd dc = Project * e;
+        Eigen::VectorXd da = -Project * S * initial_x;
+        Eigen::VectorXd delta_c_s = S * dc;
+        Eigen::VectorXd delta_a_s = S * da;
+        s = s + delta_c_s + delta_a_s / mu;
+        std::cout << "S : " << s << std::endl;
+        double dc_dot_da = da.dot(dc);
+
+        double p = dc_dot_da + sqrt(dc_dot_da * dc_dot_da - da.squaredNorm() * (dc.squaredNorm() - tau * tau));
+        double temp_mu = (dc.squaredNorm() - tau * tau) / p;
+
+        std::printf("mu = %f, new_mu = %f\n", mu, temp_mu);
+        //mu = (1 - theta) * mu;
+        mu = temp_mu;
+        epoch ++;
+    }
+    std::printf("Feasible Dual Logarithm Adaptive Method %zu epochs\n", epoch);
+    return s.cwiseInverse() * mu;
+}
+
+Eigen::VectorXd FeasiblePrimDualLogarithmSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A, const Eigen::VectorXd& b, const Eigen::VectorXd& initial_x, const Eigen::VectorXd& initial_y, const Eigen::VectorXd& initial_s) {
+  
+  size_t m = A.rows(), n = A.cols();
+  double theta = 1.0 / std::sqrt(2 * n);
+  double epsilon = 1e-10;
+  double mu = 1.0;
+  Eigen::VectorXd x = initial_x, y = initial_y, s = initial_s;
+  size_t epoch = 0;
+  while (mu * n >= epsilon ){
+    Eigen::VectorXd inv_s = s.cwiseInverse();
+    Eigen::VectorXd delta_y = linsolve<Eigen::VectorXd>(A * x.asDiagonal() * inv_s.asDiagonal() * A.transpose(), b - mu * A * inv_s);
+    Eigen::VectorXd delta_s = -A.transpose() * delta_y;
+    Eigen::VectorXd delta_x = mu * inv_s - x - x.asDiagonal() * (inv_s.asDiagonal() * delta_s);
+
+    x += delta_x;
+    y += delta_y;
+    s += delta_s;
+    mu = (1 - theta ) * mu;
+    epoch++;
+  }
+    std::printf("Feasible Prim Dual Logarithm Method %zu epochs\n", epoch);
+  return x;
 }
 
 template<class Functor>
@@ -193,6 +262,12 @@ void FeasibleSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A, const Ei
 
 void DualLogarithmSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A, const Eigen::VectorXd& b, Eigen::VectorXd& x) {
     FeasibleSolver(c, A, b, x, FeasibleDualLogarithmSolver);
+    //FeasibleSolver(c, A, b, x, FeasibleDualLogarithmWithAdaptiveUpdateSolver);
+}
+
+
+void PrimDualLogarithmSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A, const Eigen::VectorXd& b, Eigen::VectorXd& x) {
+  FeasibleSolver(c, A, b, x, FeasiblePrimDualLogarithmSolver);
 }
 
 void LPSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A,
