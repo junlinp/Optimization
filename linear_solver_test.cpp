@@ -208,6 +208,46 @@ TEST(PrimDualLogarithmSolver, Test_Case3) {
     EXPECT_NEAR(c.dot(x), -36.0, EPSILON);
 }
 
+TEST(PCVI, Simple_case) {
+    Eigen::VectorXd c(3);
+    c << 1, 1, 1;
+    Eigen::MatrixXd A(2, 3);
+    A << 1, -1, 0, 0, 0, 1;
+    Eigen::VectorXd b(2);
+    b << 1, 1;
+    Eigen::VectorXd x(3);
+    x.setZero();
+    PCVI(c, A, b, x);
+    
+    EXPECT_NEAR(x(0), 1.0, 1e-6);
+    EXPECT_NEAR(x(1), 0.0, 1e-6);
+    EXPECT_NEAR(x(2), 1.0, 1e-6);
+}
+
+TEST(PCVI, Test_Case3) {
+    
+    Eigen::VectorXd c(5);
+    c << -3.0, -5.0, 0.0, 0.0, 0.0;
+    Eigen::MatrixXd A(3, 5);
+    A << 1.0, 0.0, 1.0, 0.0, 0.0,
+         0.0, 2.0, 0.0, 1.0, 0.0,
+         3.0, 2.0, 0.0, 0.0, 1.0;
+    Eigen::VectorXd b(3);
+    b << 3,
+    12,
+    18;
+    Eigen::VectorXd x(5);
+    PCVI(c,A, b, x);
+    // Should be (2.0, 6.0, 1.0, 0.0, 0.0)
+    // Should be -36.0
+    double EPSILON = 1e-7;
+    EXPECT_NEAR(x(0), 2.0, EPSILON);
+    EXPECT_NEAR(x(1), 6.0, EPSILON);
+    EXPECT_NEAR(x(2), 1.0, EPSILON);
+    EXPECT_NEAR(x(3), 0.0, EPSILON);
+    EXPECT_NEAR(x(4), 0.0, EPSILON);
+    EXPECT_NEAR(c.dot(x), -36.0, EPSILON);
+}
 
 /*
 auto Hamming_Load_Data(const std::string& data_set) {

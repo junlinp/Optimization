@@ -279,13 +279,13 @@ Eigen::VectorXd FeasiblePrimDualLogarithmPredictorCorrectorSolver(const Eigen::V
     Eigen::VectorXd affine_s = -A.transpose() * affine_y;
     Eigen::VectorXd affine_x = x.asDiagonal() * (affine_s - s);
 
-    //theta = 2.0 / (1 + sqrt(1 + 13 * (affine_x.cwiseProduct(affine_s)).norm()));
+    double norm_xs=  (affine_x.asDiagonal() * affine_s).norm();
+    //theta = 2.0 / (1 + sqrt(1 + 13 / n / mu * norm_xs ));
 
+    // how to update y
     x += theta * affine_x;
     y += theta * affine_y;
     s += theta * affine_s;
-
-    // how to update y
     mu = (1 - theta ) * mu;
     epoch++;
   }
@@ -951,4 +951,46 @@ void SDPIIMP(const Eigen::VectorXd& C, const Eigen::SparseMatrix<double>& A, con
         }
         */
     }
+}
+
+Eigen::VectorXd Project(const Eigen::VectorXd& u, int n) {
+  Eigen::VectorXd res = u;
+
+  for(int i = 0; i < n; i++) {
+    res(i) = u(i) < 0 ? 0 : u(i);
+  }
+  return res;
+}
+
+void PCVI(const Eigen::VectorXd& c, const Eigen::MatrixXd& A, const Eigen::VectorXd& b, Eigen::VectorXd& x) {
+  size_t m = A.rows(), n = A.cols();
+
+  Eigen::MatrixXd M(m + n, m + n);
+  M.setZero();
+  M.block(0, n, n, m) = -A.transpose();
+  M.block(n, 0, m, n) = A;
+  Eigen::MatrixXd I = Eigen::MatrixXd::Identity(m + n, m + n);
+  Eigen::VectorXd q(m + n);
+  q << c, -b; 
+  // F(u) = M * u + q
+  double beta = 1.0;
+  Eigen::VectorXd u(m + n);
+  u.setZero();
+  double epsilon = 1e-10; 
+  int epoch = 0;
+  for(epoch = 0;;epoch++) {
+    Eigen::VectorXd pu = Project(u - beta * (M * u + q), n);
+    double phi = (u - pu).squaredNorm();
+    if ( std::sqrt(phi / n) < epsilon) {
+      break;
+    }
+    Eigen::VectorXd direct = (I + beta * M.transpose()) * (u - pu);
+    double alpha = phi / direct.squaredNorm();
+    beta = sqrt(phi / (M.transpose() * (u - pu)).squaredNorm());
+    u = u - alpha * direct;
+
+  }
+  std::printf("PCVI %d epochs\n", epoch);
+  x = Project(u - beta * (M * u + q), n).block(0, 0, n, 1);
+
 }
