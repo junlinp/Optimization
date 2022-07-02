@@ -9,6 +9,10 @@
 
 namespace internal {
 using namespace Eigen;
+
+template<class T>
+void Unused(T v) {  (void)(v);};
+
     std::pair<Eigen::MatrixXd, Eigen::VectorXd> ToSelfEmbeddingProblem(const Eigen::VectorXd& c,const Eigen::MatrixXd& A, const VectorXd& b) {
         MatrixXd::Index m = A.rows();
         MatrixXd::Index n = A.cols();
@@ -115,6 +119,9 @@ T linsolve(const Eigen::MatrixXd& A, const T& b) {
 }
 
 Eigen::VectorXd FeasibleDualLogarithmSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A, const Eigen::VectorXd& b, const Eigen::VectorXd& initial_x, const Eigen::VectorXd& initial_y, const Eigen::VectorXd& initial_s) {
+  internal::Unused(initial_y);
+  internal::Unused(c);
+  internal::Unused(b);
     // H is the null space of A
     size_t m = A.rows(), n = A.cols();
     Eigen::MatrixXd V = A.bdcSvd(Eigen::ComputeFullV).matrixV();
@@ -141,18 +148,29 @@ Eigen::VectorXd FeasibleDualLogarithmSolver(const Eigen::VectorXd& c, const Eige
     return s.cwiseInverse() * mu;
 }
 
+Eigen::MatrixXd ProjectOperator(const Eigen::MatrixXd& A) {
+    size_t n = A.cols();
+
+    Eigen::MatrixXd I(n, n);
+    I.setIdentity();
+
+    return I - A.transpose() * (A * A.transpose()).fullPivLu().solve(A);
+}
 
 Eigen::VectorXd FeasibleDualLogarithmWithAdaptiveUpdateSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A, const Eigen::VectorXd& b, const Eigen::VectorXd& initial_x, const Eigen::VectorXd& initial_y, const Eigen::VectorXd& initial_s) {
+  internal::Unused(initial_y);
+  internal::Unused(b);
+  internal::Unused(c);
     // H is the null space of A
     size_t m = A.rows(), n = A.cols();
     Eigen::MatrixXd V = A.bdcSvd(Eigen::ComputeFullV).matrixV();
-    
     Eigen::MatrixXd H = V.block(0, m, n, n - m).transpose();
     Eigen::VectorXd e(n);
     e.setOnes();
     Eigen::MatrixXd I = Eigen::MatrixXd::Identity(n, n);
     
     double theta = 1.0 / (3 * std::sqrt(n));
+    internal::Unused(theta);
     double mu = 1.0;
     double epsilon = 1e-10;
     double tau = 1.0 / std::sqrt(2);
@@ -160,8 +178,9 @@ Eigen::VectorXd FeasibleDualLogarithmWithAdaptiveUpdateSolver(const Eigen::Vecto
     size_t epoch  = 0;
     while (n * mu >= epsilon) {
         Eigen::MatrixXd S = s.asDiagonal();
-        Eigen::MatrixXd t = linsolve<Eigen::MatrixXd>(H * S * S * H.transpose(), H * S);
-        Eigen::MatrixXd Project = (I - S * H.transpose() * t);
+        //Eigen::MatrixXd t = linsolve<Eigen::MatrixXd>(H * S * S * H.transpose(), H * S);
+        //Eigen::MatrixXd Project = (I - S * H.transpose() * t);
+        Eigen::MatrixXd Project = ProjectOperator(H*S);
         //Eigen::VectorXd delta_s = S *  * (e - S*initial_x / mu);
         Eigen::VectorXd dc = Project * e;
         Eigen::VectorXd da = -Project * S * initial_x;
@@ -183,9 +202,57 @@ Eigen::VectorXd FeasibleDualLogarithmWithAdaptiveUpdateSolver(const Eigen::Vecto
     return s.cwiseInverse() * mu;
 }
 
+std::tuple<Eigen::VectorXd, Eigen::VectorXd, Eigen::VectorXd> KKTSolver(const Eigen::MatrixXd& A, const Eigen::VectorXd& center) {
+  // solve   Ax = 0
+  //         A^T*y + s = 0
+  //           x + s = center
+
+  Eigen::VectorXd y = linsolve<Eigen::VectorXd>(A * A.transpose(), -A * center);
+  Eigen::VectorXd s = - A.transpose() * y;
+  Eigen::VectorXd x = center + A.transpose() * y;
+  return {x, y, s};
+}
 Eigen::VectorXd FeasiblePrimDualLogarithmSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A, const Eigen::VectorXd& b, const Eigen::VectorXd& initial_x, const Eigen::VectorXd& initial_y, const Eigen::VectorXd& initial_s) {
-  
+  internal::Unused(initial_y);
+  internal::Unused(c);
+
   size_t m = A.rows(), n = A.cols();
+    Eigen::MatrixXd V = A.bdcSvd(Eigen::ComputeFullV).matrixV();
+    Eigen::MatrixXd H = V.block(0, m, n, n - m).transpose();
+  double theta = 1.0 / std::sqrt(2 * n);
+  double epsilon = 1e-10;
+  double mu = 1.0;
+  Eigen::VectorXd x = initial_x, y = initial_y, s = initial_s;
+  size_t epoch = 0;
+  while (mu * n >= epsilon ){
+    Eigen::VectorXd inv_s = s.cwiseInverse();
+    Eigen::VectorXd delta_y = linsolve<Eigen::VectorXd>(A * x.asDiagonal() * inv_s.asDiagonal() * A.transpose(), b - mu * A * inv_s);
+    Eigen::VectorXd delta_s = -A.transpose() * delta_y;
+    Eigen::VectorXd delta_x = mu * inv_s - x - x.asDiagonal() * (inv_s.asDiagonal() * delta_s);
+    Eigen::VectorXd u = x.cwiseProduct(s).cwiseSqrt() / mu;
+    Eigen::VectorXd d = (x.cwiseProduct(s.cwiseInverse())).cwiseSqrt();
+    Eigen::MatrixXd PAD = ProjectOperator(A * d.asDiagonal());
+    Eigen::MatrixXd PHDinv = ProjectOperator(H * d.cwiseInverse().asDiagonal());
+    Eigen::VectorXd dx = PAD * (u.cwiseInverse() - u);
+    Eigen::VectorXd ds = PHDinv * (u.cwiseInverse() - u);
+    //auto [delta_x, delta_y, delta_s] = KKTS
+    //x += sqrt(mu) * d.asDiagonal() * dx;
+    y += delta_y;
+    //s += sqrt(mu) * d.cwiseInverse().asDiagonal() * ds;
+    x += delta_x;
+    s += delta_s;
+    mu = (1 - theta ) * mu;
+    epoch++;
+  }
+  std::printf("Feasible Prim Dual Logarithm Method %zu epochs\n", epoch);
+  return x;
+}
+Eigen::VectorXd FeasiblePrimDualLogarithmPredictorCorrectorSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A, const Eigen::VectorXd& b, const Eigen::VectorXd& initial_x, const Eigen::VectorXd& initial_y, const Eigen::VectorXd& initial_s) {
+  internal::Unused(c);
+
+  size_t m = A.rows(), n = A.cols();
+  internal::Unused(m);
+
   double theta = 1.0 / std::sqrt(2 * n);
   double epsilon = 1e-10;
   double mu = 1.0;
@@ -200,10 +267,29 @@ Eigen::VectorXd FeasiblePrimDualLogarithmSolver(const Eigen::VectorXd& c, const 
     x += delta_x;
     y += delta_y;
     s += delta_s;
+
+    inv_s = s.cwiseInverse();
+
+
+    // Compute the Correcter Direction
+    //
+    // compute the theta for correcter direction which is feasible
+
+    Eigen::VectorXd affine_y = linsolve<Eigen::VectorXd>(x.asDiagonal() * A.transpose(), x.asDiagonal() * s);
+    Eigen::VectorXd affine_s = -A.transpose() * affine_y;
+    Eigen::VectorXd affine_x = x.asDiagonal() * (affine_s - s);
+
+    double norm_xs=  (affine_x.asDiagonal() * affine_s).norm();
+    //theta = 2.0 / (1 + sqrt(1 + 13 / n / mu * norm_xs ));
+
+    // how to update y
+    x += theta * affine_x;
+    y += theta * affine_y;
+    s += theta * affine_s;
     mu = (1 - theta ) * mu;
     epoch++;
   }
-    std::printf("Feasible Prim Dual Logarithm Method %zu epochs\n", epoch);
+  std::printf("Feasible Prim Dual Logarithm Method %zu epochs\n", epoch);
   return x;
 }
 
@@ -267,7 +353,8 @@ void DualLogarithmSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A, con
 
 
 void PrimDualLogarithmSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A, const Eigen::VectorXd& b, Eigen::VectorXd& x) {
-  FeasibleSolver(c, A, b, x, FeasiblePrimDualLogarithmSolver);
+  //FeasibleSolver(c, A, b, x, FeasiblePrimDualLogarithmSolver);
+  FeasibleSolver(c, A, b, x, FeasiblePrimDualLogarithmPredictorCorrectorSolver);
 }
 
 void LPSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A,
@@ -864,4 +951,46 @@ void SDPIIMP(const Eigen::VectorXd& C, const Eigen::SparseMatrix<double>& A, con
         }
         */
     }
+}
+
+Eigen::VectorXd Project(const Eigen::VectorXd& u, int n) {
+  Eigen::VectorXd res = u;
+
+  for(int i = 0; i < n; i++) {
+    res(i) = u(i) < 0 ? 0 : u(i);
+  }
+  return res;
+}
+
+void PCVI(const Eigen::VectorXd& c, const Eigen::MatrixXd& A, const Eigen::VectorXd& b, Eigen::VectorXd& x) {
+  size_t m = A.rows(), n = A.cols();
+
+  Eigen::MatrixXd M(m + n, m + n);
+  M.setZero();
+  M.block(0, n, n, m) = -A.transpose();
+  M.block(n, 0, m, n) = A;
+  Eigen::MatrixXd I = Eigen::MatrixXd::Identity(m + n, m + n);
+  Eigen::VectorXd q(m + n);
+  q << c, -b; 
+  // F(u) = M * u + q
+  double beta = 1.0;
+  Eigen::VectorXd u(m + n);
+  u.setZero();
+  double epsilon = 1e-10; 
+  int epoch = 0;
+  for(epoch = 0;;epoch++) {
+    Eigen::VectorXd pu = Project(u - beta * (M * u + q), n);
+    double phi = (u - pu).squaredNorm();
+    if ( std::sqrt(phi / n) < epsilon) {
+      break;
+    }
+    Eigen::VectorXd direct = (I + beta * M.transpose()) * (u - pu);
+    double alpha = phi / direct.squaredNorm();
+    beta = sqrt(phi / (M.transpose() * (u - pu)).squaredNorm());
+    u = u - alpha * direct;
+
+  }
+  std::printf("PCVI %d epochs\n", epoch);
+  x = Project(u - beta * (M * u + q), n).block(0, 0, n, 1);
+
 }
