@@ -2,9 +2,18 @@
 %{
 #include <string>
 #include <iostream>
+#include "mps_format_io.h"
+
 int yyerror(char*s);
 int yylex(void);
+extern FILE* yyin;
+
+Problem yyproblem;
+
+std::vector<std::string> equal_variable, less_variable, greater_variable;
+std::string obj_variable;
 %}
+%require "3.2"
 
 %union{
 	double value;
@@ -43,54 +52,92 @@ input : %empty
      | RangeSection input 
      | BoundsSection input
      | SosSection input
-     | EndataSection
+     | SECTION_ENDATA
 	  ;
 
-EndataSection : SECTION_ENDATA;
-
 NameSection: SECTION_NAME LINE { 
-			std::cout << *($1) << "\n" << *($2)  << std::endl;
 		    delete $1;
 			delete $2;
 			}
        ;
 
 ObjSenseSection: SECTION_OBJSENSE IDENTIFIER {
-			std::cout << *($1) << "\n" << *($2)  << std::endl;
 		    delete $1;
 			delete $2;
 		    }
 			   ;
 
 RowSection : SECTION_ROW RowPart  { 
-			std::cout << *($1) << "\n" << *($2)  << std::endl;
-		    delete $1;
-			delete $2;
+		   yyproblem.equal_size = equal_variable.size();
+		   yyproblem.less_size = less_variable.size();
+		   yyproblem.greater_size = greater_variable.size();
+		   int offset = 0;
+           yyproblem.row_offset[obj_variable] = offset++;
+		   for(auto str : equal_variable) {
+				yyproblem.row_offset[str] = offset++;
+		   }
+		   for (auto str : less_variable) {
+				yyproblem.row_offset[str] = offset++;
+		   }
+		   for (auto str : greater_variable) {
+				yyproblem.row_offset[str] = offset++;
 			}
+			std::printf("Equal %d, Less %d, Greater %d\n", yyproblem.equal_size, yyproblem.less_size, yyproblem.greater_size);
+}
 ;
 
-RowPart : RowPart RowItem { 
-		$$ = new std::string(*$1 + " " + *$2); 
-        delete $1;delete $2;}
-        | RowItem {$$ = $1;}
+RowPart : RowPart RowItem
+        | RowItem 
         ;
 
-RowItem : ROWTYPE IDENTIFIER { $$ = new std::string(*$1 + " " + *$2); 
-		delete $1;delete $2;}
-		;
+RowItem : ROWTYPE IDENTIFIER { 
+		$$ = new std::string(*$1 + " " + *$2); 
+        std::string row_type = *$1;
+		if (*$1 == "E") {
+			equal_variable.push_back(*$2);
+		} else if (row_type == "G") {
+			greater_variable.push_back(*$2);
+		} else if (row_type == "L") {
+			less_variable.push_back(*$2);
+		} else {
+			obj_variable = *$2;
+		}
+		delete $1;delete $2;
+};
 
-ColumnsSection : SECTION_COLUMNS ColumnsPart;
+ColumnsSection : SECTION_COLUMNS ColumnsPart {
+			std::printf("Total %lu nnz\n", yyproblem.row_column_value.size());
+			   }
 
 ColumnsPart : ColumnsPart ColumnsItem 
 		 | ColumnsItem;
 
-ColumnsItem : IDENTIFIER IDENTIFIER NUMBER;
+ColumnsItem : IDENTIFIER IDENTIFIER NUMBER {
+			// column row value
+			std::string column_name = *$1;
+            std::string row_name = *$2;
+double value = $3;
+if (yyproblem.column_offset.find(column_name) == yyproblem.column_offset.end()) {
+	yyproblem.column_offset[column_name] = yyproblem.column_offset.size();
+}
+yyproblem.row_column_value.push_back({row_name, column_name, value});
+delete $1;
+delete $2;
+}
 
-RhsSection : SECTION_RHS RhsPart;
+RhsSection : SECTION_RHS RhsPart {
+		   std::printf("Total %lu RHS Item\n", yyproblem.rhs.size());
+		   }
 
 RhsPart : RhsPart RhsItem
 		| RhsItem;
-RhsItem : IDENTIFIER IDENTIFIER NUMBER;
+RhsItem : IDENTIFIER IDENTIFIER NUMBER {
+		std::string row_name = *$2;
+        double value = $3;
+        yyproblem.rhs.emplace_back(row_name, value);
+        delete $1;
+        delete $2;
+		}
 
 RangeSection : SECTION_RANGES;
 
@@ -98,11 +145,17 @@ BoundsSection : SECTION_BOUNDS BoundsPart;
 
 BoundsPart : BoundsPart BoundsItem
 		   | BoundsItem;
-BoundsItem : IDENTIFIER IDENTIFIER IDENTIFIER NUMBER;
+BoundsItem : IDENTIFIER IDENTIFIER IDENTIFIER NUMBER {
+		   std::string column_name = *$3;
+double value = $4;
+
+yyproblem.up_bounds.emplace_back(column_name, value);
+delete $1;
+delete $2;
+delete $3;
+}
 
 SosSection : SECTION_SOS;
-
-EndataSection : SECTION_ENDATA;
 
 %%
 
@@ -122,6 +175,19 @@ int yyerror(char* s) {
 }
 
 
-int main() {
-	yyparse();
+/*
+int main(int argc, char ** argv) {
+    if (argc < 2) {
+		printf("Usage: %s mps_file\n", argv[0]);
+		return 0;
+    }
+    FILE* finput = fopen(argv[1], "r");
+    yyin = finput;
+	int res = yyparse();
+    if (res == 0) {
+		std::cout << "Parse Success" << std::endl;
+    } else {
+	    std::cout << "Parse Fails" << std::endl;
+	}
 }
+*/

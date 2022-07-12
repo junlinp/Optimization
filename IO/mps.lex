@@ -1,6 +1,6 @@
 %{
 #include <string>
-#include "mps.tab.h"
+#include "parser.hpp"
 
 int yyerror(char *s);
 
@@ -40,6 +40,7 @@ Line ^\*.+[0-9]
 {Variable} { yylval.literature = new std::string(yytext); return IDENTIFIER;}
 {Num} { yylval.value = std::stod(yytext); return NUMBER;}
 [\n] { yylineno++;}
+. {}
 
 %%
 
