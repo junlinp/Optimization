@@ -36,6 +36,17 @@ Line ^\*.+[0-9]
 
 {ROW_TYPE} { yylval.literature = new std::string(yytext); return ROWTYPE;}
 
+LO { yylval.literature = new std::string(yytext); return BOUNDS_TYPE_LO;}
+UP { yylval.literature = new std::string(yytext); return BOUNDS_TYPE_UP;}
+FX { yylval.literature = new std::string(yytext); return BOUNDS_TYPE_FX;}
+FR { yylval.literature = new std::string(yytext); return BOUNDS_TYPE_FR;}
+MI { yylval.literature = new std::string(yytext); return BOUNDS_TYPE_MI;}
+PL { yylval.literature = new std::string(yytext); return BOUNDS_TYPE_PL;}
+BV { yylval.literature = new std::string(yytext); return BOUNDS_TYPE_BV;}
+LI { yylval.literature = new std::string(yytext); return BOUNDS_TYPE_LI;}
+UI { yylval.literature = new std::string(yytext); return BOUNDS_TYPE_UI;}
+SC { yylval.literature = new std::string(yytext); return BOUNDS_TYPE_SC;}
+
 {Line} { yylval.literature = new std::string(yytext); return LINE;}
 {Variable} { yylval.literature = new std::string(yytext); return IDENTIFIER;}
 {Num} { yylval.value = std::stod(yytext); return NUMBER;}

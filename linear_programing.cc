@@ -202,7 +202,7 @@ int ConstructProblem(Problem& problem, Eigen::VectorXd& c, Eigen::SparseMatrix<d
   int m1 = E.rows(), m2 = IA.rows();
   Eigen::VectorXd c_dot(n1 + n1 + n2);
   c_dot << c, -c, Eigen::VectorXd::Zero(n2);
-  c = c_dot;
+  //c = c_dot;
   A = Eigen::SparseMatrix<double>(m1 + m2, n1 + n1 + n2);
 
   std::vector<Eigen::Triplet<double>> A_triple;
@@ -237,9 +237,13 @@ int ConstructProblem(Problem& problem, Eigen::VectorXd& c, Eigen::SparseMatrix<d
   b = Eigen::VectorXd(E.rows() + IA.rows());
   b << Eigen::VectorXd(Eb), Eigen::VectorXd(Ib);
 
+  A = E;
+  b = Eb;
+
   // min <c, x>
-  // s.t Ax = b
-  //     Gx >= d
+  // s.t Ex = Eb
+  //     Lb <= Lx
+  //      0 <= Gx <= Gb
 
   //  min <c, x1> - <c, x2>
   // s.t

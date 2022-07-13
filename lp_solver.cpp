@@ -24,7 +24,9 @@ int main(int argc, char** argv) {
     ConjugateGradient<SparseMatrix<double>> solver;
     solver.compute(SparseMatrix<double>(A.transpose()) * A);
     std::cout << (solver.info() == Success) << std::endl;
-    x = solver.solve(A.transpose() * b);
+    Eigen::VectorXd ATb = A.transpose() * b;
+    std::cout << "AT b : " << std::endl;
+    x = solver.solve(ATb);
     std::cout << "Constraint Norm : " << (A * x - b).norm() << std::endl;
     
     //PCVI(c, A, b, x);
