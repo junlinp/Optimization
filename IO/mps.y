@@ -13,6 +13,7 @@ Problem yyproblem;
 std::vector<std::string> equal_variable, less_variable, greater_variable;
 std::string obj_variable;
 %}
+
 %require "3.2"
 
 %union{
@@ -107,8 +108,8 @@ RowSection : SECTION_ROW RowPart  {
 		   }
 		   for (auto str : greater_variable) {
 				yyproblem.row_offset[str] = offset++;
+
 			}
-			//std::printf("Equal %d, Less %d, Greater %d\n", yyproblem.equal_size, yyproblem.less_size, yyproblem.greater_size);
 }
 ;
 
@@ -132,21 +133,23 @@ RowItem : ROWTYPE IDENTIFIER {
 };
 
 ColumnsSection : SECTION_COLUMNS ColumnsPart {
-			std::printf("Total %lu nnz\n", yyproblem.row_column_value.size());
-			   }
+		std::printf("Total %lu nnz With %lu variable\n", yyproblem.row_column_value.size(), yyproblem.lower_bounds.size());
+	    
+}
 
 ColumnsPart : ColumnsPart ColumnsItem 
 		 | ColumnsItem;
 
 ColumnsItem : IDENTIFIER IDENTIFIER NUMBER {
-			// column row value
 			std::string column_name = *$1;
-            std::string row_name = *$2;
+			std::string row_name = *$2;
 double value = $3;
 if (yyproblem.column_offset.find(column_name) == yyproblem.column_offset.end()) {
 	yyproblem.column_offset[column_name] = yyproblem.column_offset.size();
+	yyproblem.lower_bounds.emplace_back(column_name, 0);
+    yyproblem.up_bounds.emplace_back(column_name, std::numeric_limits<double>::infinity());
 }
-yyproblem.row_column_value.push_back({row_name, column_name, value});
+yyproblem.row_column_value.emplace_back(row_name, column_name, value);
 delete $1;
 delete $2;
 }
@@ -175,15 +178,27 @@ BoundsPart : BoundsPart BoundsItem
 BoundsItem : BOUNDS_TYPE_UP IDENTIFIER IDENTIFIER NUMBER {
 		   std::string column_name = *$3;
 double value = $4;
+for(auto& [name, v]: yyproblem.up_bounds) {
+	if (name == column_name) {
+		v = value;
+	}	
+}
 
-yyproblem.up_bounds.emplace_back(column_name, value);
+if (value < 0.0) {
+std::printf("Waring: UP Bounds for %s is less then 0\n", column_name.c_str());
+}
+
 delete $1;
 delete $2;
 delete $3;
 }         | BOUNDS_TYPE_LO IDENTIFIER IDENTIFIER NUMBER {
-    std::string column_name = *$3;
-	double value = $4;
-	yyproblem.lower_bounds.emplace_back(column_name, value);
+std::string column_name = *$3;
+double value = $4;
+for(auto& [name, v]: yyproblem.lower_bounds) {
+	if (name == column_name) {
+		v = value;
+	}	
+}
 	delete $1;
 	delete $2;
 	delete $3;

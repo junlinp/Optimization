@@ -16,7 +16,7 @@ RANGES RANGES
 BOUNDS BOUNDS
 SOS SOS
 ENDATA ENDATA
-Variable [a-zA-Z][a-zA-z0-9]+
+Variable [a-zA-Z][a-zA-z0-9_]+
 ROW_TYPE [ENLG]
 DIGITS [0-9]+
 MANTISSA  (\+|\-)?{DIGITS}?(\.)?{DIGITS}?

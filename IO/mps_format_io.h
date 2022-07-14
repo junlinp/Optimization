@@ -6,7 +6,7 @@
 #include <tuple>
 
 struct Problem {
-	std::map<std::string, int> row_offset;	
+	std::map<std::string, int> row_offset;
 	std::map<std::string, int> column_offset;
 	int equal_size, less_size, greater_size;
 	std::vector<std::pair<std::string, double>> rhs;

@@ -16,20 +16,19 @@ int main(int argc, char** argv) {
     Eigen::VectorXd b;
 
     ConstructProblem(problem, c, A, b);
-    std::cout << "ConstructProblem Finish" << std::endl;
+    std::cout << "A[" << A.rows() << "," << A.cols() << "] nnz  : " << A.nonZeros() << std::endl;
     Eigen::VectorXd x;
-    
     using namespace Eigen;
     //ConjugateGradient<SparseMatrix<double>, COLAMDOrdering<int>> solver;
-    ConjugateGradient<SparseMatrix<double>> solver;
+    LeastSquaresConjugateGradient<SparseMatrix<double>> solver;
     solver.compute(SparseMatrix<double>(A.transpose()) * A);
     std::cout << (solver.info() == Success) << std::endl;
     Eigen::VectorXd ATb = A.transpose() * b;
-    std::cout << "AT b : " << std::endl;
     x = solver.solve(ATb);
-    std::cout << "Constraint Norm : " << (A * x - b).norm() << std::endl;
     
-    //PCVI(c, A, b, x);
+    std::cout << "#iterations:     " << solver.iterations() << std::endl;
+    std::cout << "estimated error: " << solver.error()      << std::endl;
+    PCVI(c, A, b, x);
 
 
 }

@@ -143,13 +143,11 @@ int ConstructProblem(Problem& problem, Eigen::VectorXd& c, Eigen::SparseMatrix<d
   for(auto&& [row_name, column_name, value] : problem.row_column_value) {
     int row_index = problem.row_offset[row_name];
     int column_index = problem.column_offset[column_name];
-    //M.insert(row_index, column_index) = value;
     triple.emplace_back(row_index, column_index, value);
   }
   M.setFromTriplets(triple.begin(), triple.end());
   size_t n = M.cols();
   std::cout << "M Has : " << M.nonZeros() << " nnz" << std::endl;
-
   using SV = Eigen::SparseVector<double>;
 
   SV RHS(M.rows());
@@ -157,16 +155,16 @@ int ConstructProblem(Problem& problem, Eigen::VectorXd& c, Eigen::SparseMatrix<d
     int row_index = problem.row_offset[row_name];
     RHS.insert(row_index) = value;
   }
-  std::cout << " RHS Has : " << RHS.nonZeros() << " nnz" << std::endl;
+  std::cout << "RHS Has " << RHS.nonZeros() << " nnz" << std::endl;
 
   SM UPBounds(problem.up_bounds.size(), n);
   SV UPBounds_b(problem.up_bounds.size());
   int count = 0;
   for ( auto&&[column_name, value] : problem.up_bounds) {
     int column_index = problem.column_offset[column_name];
-     UPBounds.insert(count, column_index) = 1.0;
-     UPBounds_b.insert(count) = value;
-     count++;
+    UPBounds.insert(count, column_index) = 1.0;
+    UPBounds_b.insert(count) = value;
+    count++;
   }
   
   SM LOBounds(problem.lower_bounds.size(), n);
@@ -191,19 +189,16 @@ int ConstructProblem(Problem& problem, Eigen::VectorXd& c, Eigen::SparseMatrix<d
   SM IA = -L;
   SV Ib = -Lb;
   // IA * x >= Ib
-  std::cout << "Start IE Append" << std::endl;
   ReduceInEqual(IA, Ib, G, Gb);
   ReduceInEqual(IA, Ib, SM(-UPBounds), SV(-UPBounds_b));
   ReduceInEqual(IA, Ib, LOBounds, LOBounds_b);
-  std::cout << "IE Append FINISH" << std::endl;
 
-  //InEqualToEual(c, A, b, E, b, IA, Ib);
-  int n1 = E.cols(), n2 = IA.rows();
+  int variable_size = E.cols();
   int m1 = E.rows(), m2 = IA.rows();
-  Eigen::VectorXd c_dot(n1 + n1 + n2);
-  c_dot << c, -c, Eigen::VectorXd::Zero(n2);
-  //c = c_dot;
-  A = Eigen::SparseMatrix<double>(m1 + m2, n1 + n1 + n2);
+  Eigen::VectorXd c_dot(2 * variable_size + m2);
+  c_dot << c, -c, Eigen::VectorXd::Zero(m2);
+  c = c_dot;
+  A = Eigen::SparseMatrix<double>(m1 + m2, variable_size * 2 + m2);
 
   std::vector<Eigen::Triplet<double>> A_triple;
 
@@ -211,10 +206,9 @@ int ConstructProblem(Problem& problem, Eigen::VectorXd& c, Eigen::SparseMatrix<d
     for (Eigen::SparseMatrix<double, Eigen::RowMajor>::InnerIterator it(E, k); it; ++it) {
       int row = it.row();
       int col = it.col();
-      double value = it.value();      
-
+      double value = it.value();
       A_triple.emplace_back(row, col, value);
-      A_triple.emplace_back(row, col + n1, -value);
+      A_triple.emplace_back(row, col + variable_size, -value);
     }
   }
 
@@ -225,20 +219,19 @@ int ConstructProblem(Problem& problem, Eigen::VectorXd& c, Eigen::SparseMatrix<d
       double value = it.value();      
 
       A_triple.emplace_back(row + m1, col, value);
-      A_triple.emplace_back(row + m1, col + n1, -value);
+      A_triple.emplace_back(row + m1, col + variable_size, -value);
     }
   }
 
-  for(int i = 0; i < n2; i++) {
-    A_triple.emplace_back(m1 + i, n1 + n1 + i, 1.0);
+  for(int i = 0; i < m2; i++) {
+    A_triple.emplace_back(m1 + i, 2 * variable_size+ i, 1.0);
   }
-  std::cout << "A Finish" << std::endl; 
+
+  A.setFromTriplets(A_triple.begin(), A_triple.end());
 
   b = Eigen::VectorXd(E.rows() + IA.rows());
   b << Eigen::VectorXd(Eb), Eigen::VectorXd(Ib);
 
-  A = E;
-  b = Eb;
 
   // min <c, x>
   // s.t Ex = Eb
@@ -1175,6 +1168,7 @@ void PCVI(const Eigen::VectorXd& c, const Eigen::SparseMatrix<double>& A, const 
   double beta = 1.0;
   double epsilon = 1e-10;
   int epoch = 0;
+  double grama = 1.8;
   auto F = [A, m, n, c, b](const Eigen::VectorXd& u) {
     Eigen::VectorXd res = u;
     res.block(0, 0, n, 1) = c - A.transpose() * u.block(n, 0, m, 1);
@@ -1189,17 +1183,13 @@ void PCVI(const Eigen::VectorXd& c, const Eigen::SparseMatrix<double>& A, const 
     if ( std::sqrt(phi / n) < epsilon) {
       break;
     }
-    if (epoch % 10 == 0) {
-      std::printf("[%d] Phi = %.7f\n", epoch, phi);
+    if (epoch % 100 == 0) {
+      std::printf("[%d] error measure = %.13f\n", epoch, std::sqrt(phi / n));
     }
     Eigen::VectorXd direct = u - pu + beta * (F(pu) - F(u));
     double alpha = phi / direct.squaredNorm();
-    //beta = sqrt(phi / (F(pu) - F(u)).squaredNorm());
-    std::cout << "Alpha : " << alpha << std::endl;
-    std::cout << "direct Norm : " << direct.squaredNorm() << std::endl;
-    std::cout << "direct : " << direct.block(n, 0, 8, 1) << std::endl;
-    std::cout << "u : " << u.block(n, 0, 8, 1) << std::endl;
-    u = u - alpha * direct;
+    beta = sqrt(phi / (F(pu) - F(u)).squaredNorm());
+    u = u - grama * alpha * direct;
   }
   std::printf("PCVI %d epochs \n", epoch);
   x = Project(u - beta * F(u), n).block(0, 0, n, 1);
