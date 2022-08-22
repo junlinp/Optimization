@@ -40,6 +40,11 @@ void PrimDualLogarithmSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A,
 
 void PCVI(const Eigen::VectorXd& c, const Eigen::MatrixXd& A, const Eigen::VectorXd& b, Eigen::VectorXd& x);
 void PCVI(const Eigen::VectorXd& c, const Eigen::SparseMatrix<double>& A, const Eigen::VectorXd& b, Eigen::VectorXd& x);
+void PCVI2(const Eigen::VectorXd& c, const Eigen::SparseMatrix<double>& A, const Eigen::VectorXd& b, Eigen::VectorXd& x);
+void ADMM(const Eigen::VectorXd& c, const Eigen::SparseMatrix<double>& A, const Eigen::VectorXd& b, Eigen::VectorXd& x);
+
+void SparsePrimDualLogarithmSolver(const Eigen::VectorXd& c, const Eigen::SparseMatrix<double>& A, const Eigen::VectorXd& b, Eigen::VectorXd& x);
+
 void RobustLPSolver(const Eigen::VectorXd& c,
                     const std::vector<Eigen::VectorXd>& A,
                     const std::vector<double>& b,

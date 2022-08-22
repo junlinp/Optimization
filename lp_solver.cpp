@@ -21,14 +21,15 @@ int main(int argc, char** argv) {
     using namespace Eigen;
     //ConjugateGradient<SparseMatrix<double>, COLAMDOrdering<int>> solver;
     LeastSquaresConjugateGradient<SparseMatrix<double>> solver;
-    solver.compute(SparseMatrix<double>(A.transpose()) * A);
+    solver.compute(A);
     std::cout << (solver.info() == Success) << std::endl;
-    Eigen::VectorXd ATb = A.transpose() * b;
-    x = solver.solve(ATb);
+    x = solver.solve(b);
     
     std::cout << "#iterations:     " << solver.iterations() << std::endl;
     std::cout << "estimated error: " << solver.error()      << std::endl;
-    PCVI(c, A, b, x);
+    //PCVI2(c, A, b, x);
+    //SparsePrimDualLogarithmSolver(c, A, b, x);
+    ADMM(c, A, b, x);
 
 
 }

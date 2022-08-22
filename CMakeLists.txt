@@ -1,10 +1,9 @@
 cmake_minimum_required(VERSION 3.13)
 project(Optimization)
-
 find_package(Eigen3 REQUIRED)
 find_package(GTest REQUIRED)
-find_package(Flex REQUIRED)
-find_package(Bison REQUIRED)
+find_package(FLEX REQUIRED)
+find_package(BISON REQUIRED)
 
 #find_package(GLOG REQUIRED)
 #find_package(BLAS REQUIRED)
