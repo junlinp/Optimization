@@ -9,6 +9,7 @@ template<class T>
 void AngleAxisRotation(T* angle_axis, T* point, T* output) {
     const T theta2 = (angle_axis[0] * angle_axis[0]) + (angle_axis[1] * angle_axis[1]) + (angle_axis[2] * angle_axis[2]);
     const T theta = sqrt(theta2);
+
     const T costheta = cos(theta);
     const T sintheta = sin(theta);
     const T theta_inverse = T(1.0) / theta;
@@ -35,6 +36,7 @@ struct ProjectFunction {
     bool operator()(T* camera_param, T* point, T* residual) const {
         T output_point[3];
         AngleAxisRotation(camera_param, point, output_point);
+        std::cout << "output_point[0] Gradient : " << output_point[0].Gradient() << std::endl;
         output_point[0] += camera_param[3];
         output_point[1] += camera_param[4];
         output_point[2] += camera_param[5];
