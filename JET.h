@@ -93,12 +93,14 @@ class UnaryOp
  public:
   using DATA_TYPE = typename OPRAND::DATA_TYPE;
   static const int DUAL_NUMBER_SIZE = OPRAND::DUAL_NUMBER_SIZE;
+  using GRADIENT_TYPE = Eigen::Matrix<DATA_TYPE, DUAL_NUMBER_SIZE, 1>;
   UnaryOp(const OPRAND& oprand) : oprand_(oprand) {}
 
   DATA_TYPE value_imp() const {
     return OperatorImp::value_unary_op(oprand_);
   }
-  Eigen::Matrix<DATA_TYPE, DUAL_NUMBER_SIZE, 1> Gradient_imp() {
+
+  GRADIENT_TYPE Gradient_imp() const {
     return OperatorImp::Gradient_unary_op(oprand_);
   }
 
@@ -109,9 +111,10 @@ class UnaryOp
 class MinusUnaryOp {
  public:
  template<typename EXPR>
-  static auto value_unary_op(const EXPR& expr) { return -expr.value(); }
+  static typename EXPR::DATA_TYPE value_unary_op(const EXPR& expr) { return -expr.value(); }
+
   template<typename EXPR>
-  static auto Gradient_unary_op(
+  static typename EXPR::GRADIENT_TYPE  Gradient_unary_op(
       const EXPR& expr) {
     return -expr.Gradient();
   }
@@ -121,21 +124,38 @@ class SinOp {
   public:
   template<typename EXPR>
   static auto value_unary_op(const EXPR& expr) { return sin(expr.value());}
+
   template<typename EXPR>
   static auto Gradient_unary_op(const EXPR& expr) {
-    return std::cos(expr.Gradient());
+	  using GRADIENT_TYPE = std::remove_cv_t<typename EXPR::GRADIENT_TYPE>;
+	  constexpr bool v  = std::is_same<Eigen::Matrix<double, 12, 1>, std::remove_cv_t<typename EXPR::GRADIENT_TYPE>>::value;
+	  static_assert(v, "type error");
+	  Eigen::Matrix<double, 12, 1> gradient = expr.Gradient();
+
+	  for (int i = 0; i < 12; i++) {
+		  gradient(i) = std::cos(gradient(i));
+	  }
+	  return gradient;
   }
 };
 
 class CosOp {
   public:
   template<typename EXPR>
-  static auto value_unary_op(const EXPR& expr) { return cos(expr.value());}
+  static typename EXPR::DATA_TYPE value_unary_op(const EXPR& expr) { return cos(expr.value());}
+
   template<typename EXPR>
-  static auto Gradient_unary_op(const EXPR& expr) {
-    return -std::sin(expr.Gradient());
+  static typename EXPR::GRADIENT_TYPE Gradient_unary_op(const EXPR& expr) {
+	  using GRADIENT_TYPE = std::remove_cv_t<typename EXPR::GRADIENT_TYPE>;
+	  GRADIENT_TYPE gradient = expr.Gradient();
+
+	  for(int i = 0; i < EXPR::DUAL_NUMBER_SIZE;i++) {
+		  gradient(i) = -std::sin(gradient(i));
+	  }
+	  return gradient;
   }
 };
+
 template <typename EXPR, class DataType = typename EXPR::DATA_TYPE>
 auto cos(const EXPR& oprand) {
   return UnaryOp<EXPR, CosOp>(oprand);
@@ -178,6 +198,7 @@ struct Binary_trait {
 
   using DATA_TYPE = typename LHS_OPRAND::DATA_TYPE;
   const static int DUAL_NUMBER_SIZE = LHS_OPRAND::DUAL_NUMBER_SIZE;
+  using GRADIENT_TYPE = typename LHS_OPRAND::GRADIENT_TYPE;
 };
 
 template <class LHS_OPRAND, class RHS_OPRAND, class OperatorImp>
@@ -189,6 +210,7 @@ class BinaryOp : public Expression<
   using DATA_TYPE = typename Binary_trait<LHS_OPRAND, RHS_OPRAND>::DATA_TYPE;
   static const int DUAL_NUM_SIZE =
       Binary_trait<LHS_OPRAND, RHS_OPRAND>::DUAL_NUMBER_SIZE;
+  using GRADIENT_TYPE = typename Binary_trait<LHS_OPRAND, RHS_OPRAND>::GRADIENT_TYPE;
   BinaryOp(const LHS_OPRAND& lhs, const RHS_OPRAND& rhs)
       : lhs_oprand_(lhs), rhs_oprand_(rhs) {}
 
@@ -291,12 +313,12 @@ auto operator/(const LHS& lhs, const RHS& rhs) {
   return BinaryOp<LHS, RHS, DivisionOp>(lhs, rhs);
 }
 
-template <class RHS, 
-          class V = typename RHS::DATA_TYPE, int D = RHS::DUAL_NUMBER_SIZE>
-auto operator/(const V& lhs, const RHS& rhs) {
-  Jet<V, RHS::DUAL_NUMBER_SIZE> const_lhs(lhs);
-  return BinaryOp<decltype(const_lhs), RHS, DivisionOp>(const_lhs, rhs);
-}
+//template <class LHS = double, class RHS, 
+//          class RHS_Da = typename RHS::DATA_TYPE, int D = RHS::DUAL_NUMBER_SIZE>
+// auto operator/(const LHS& lhs, const RHS& rhs) {
+//  Jet<LHS, RHS::DUAL_NUMBER_SIZE> const_lhs(lhs);
+//  return BinaryOp<decltype(const_lhs), RHS, DivisionOp>(const_lhs, rhs);
+//}
 
 /*
 template <class LHS, class RHS>
