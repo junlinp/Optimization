@@ -7,9 +7,12 @@
 #include "ceres/rotation.h"
 #include "ceres/jet.h"
 #include <chrono>
-int main() {
-    //const std::string path = "/Users/GEEK/Downloads/problem-1723-156502-pre.txt";
-    const std::string path = "/Users/GEEK/Downloads/problem-49-7776-pre.txt";
+int main(int argc, char**argv) {
+    if(argc < 2) {
+	    std::fprintf(stderr, "Usage: %s /path/to/data_set\n", argv[0]);
+	    return 0;
+    }
+    const std::string path = argv[1];
 
     Problem problem = LoadProblem(path);
     std::cout << "Cameras : " << problem.cameras_.size() << std::endl;
