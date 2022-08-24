@@ -67,4 +67,4 @@ LinearPrograming
 #Eigen3::Eigen)
 
 
-#add_subdirectory(bal)
+add_subdirectory(bal)

@@ -55,6 +55,20 @@ class Jet : public Expression<Jet<BASIC_TYPE, N>, BASIC_TYPE, N> {
 
   template <class EXPR>
   Jet(const EXPR& expr) : value_{expr.value()}, gradient_(expr.Gradient()) {}
+  
+  template <class EXPR>
+  Jet& operator+=(const EXPR& expr) {
+    value_ += expr.value();
+    gradient_ += expr.Gradient();
+    return *this;
+  }
+
+  template<class EXPR>
+  Jet& operator/=(const EXPR& expr) {
+    value_ /= expr.value();
+    gradient_ = (value_ * expr.Gradient() - expr.value() * gradient_) / (expr.value() * expr.value());
+    return *this;
+  }
 
   void setGradient(size_t index, BASIC_TYPE value) { gradient_(index) = value; }
   DATA_TYPE value_imp() const { return value_; }
@@ -102,6 +116,55 @@ class MinusUnaryOp {
     return -expr.Gradient();
   }
 };
+
+class SinOp {
+  public:
+  template<typename EXPR>
+  static auto value_unary_op(const EXPR& expr) { return sin(expr.value());}
+  template<typename EXPR>
+  static auto Gradient_unary_op(const EXPR& expr) {
+    return std::cos(expr.Gradient());
+  }
+};
+
+class CosOp {
+  public:
+  template<typename EXPR>
+  static auto value_unary_op(const EXPR& expr) { return cos(expr.value());}
+  template<typename EXPR>
+  static auto Gradient_unary_op(const EXPR& expr) {
+    return -std::sin(expr.Gradient());
+  }
+};
+template <typename EXPR, class DataType = typename EXPR::DATA_TYPE>
+auto cos(const EXPR& oprand) {
+  return UnaryOp<EXPR, CosOp>(oprand);
+}
+
+class SqrtOp {
+  public:
+  template<typename EXPR>
+  static auto value_unary_op(const EXPR& expr) { return sqrt(expr.value());}
+  template<typename EXPR>
+  static auto Gradient_unary_op(const EXPR& expr) {
+    return expr.Gradient() / sqrt(expr.value());
+  }
+};
+template <typename EXPR, class DataType = typename EXPR::DATA_TYPE>
+auto sqrt(const EXPR& oprand) {
+  return UnaryOp<EXPR, SqrtOp>(oprand);
+}
+
+
+template <typename EXPR, class DataType = typename EXPR::DATA_TYPE>
+auto operator-(const EXPR& oprand) {
+  return UnaryOp<EXPR, MinusUnaryOp>(oprand);
+}
+
+template <typename EXPR, class DataType = typename EXPR::DATA_TYPE>
+auto sin(const EXPR& oprand) {
+  return UnaryOp<EXPR, SinOp>(oprand);
+}
 
 template <class LHS_OPRAND, class RHS_OPRAND>
 struct Binary_trait {
@@ -163,6 +226,7 @@ template <class LHS, class RHS, class U = typename LHS::DATA_TYPE,
 auto operator+(const LHS& lhs, const RHS& rhs) {
   return BinaryOp<LHS, RHS, PlusOp>(lhs, rhs);
 }
+
 class MinusBinaryOp {
  public:
 template <class LHS_OPRAND, class RHS_OPRAND>
@@ -203,9 +267,7 @@ auto operator*(const LHS& lhs, const RHS& rhs) {
 }
 
 class DivisionOp {
-                 
  public:
-
 template <class LHS_OPRAND, class RHS_OPRAND>
   static auto value_binary_op(const LHS_OPRAND& lhs,
                             const RHS_OPRAND& rhs) {
@@ -215,13 +277,26 @@ template <class LHS_OPRAND, class RHS_OPRAND>
 template <class LHS_OPRAND, class RHS_OPRAND>
   static auto Gradient_binary_op(
       const LHS_OPRAND& lhs, const RHS_OPRAND& rhs) {
-    // f / g = f' * g + g' * f / g / g
+    // f / g = f' * g - g' * f / g / g
     auto&& l = lhs.value();
     auto&& r = rhs.value();
     auto denominator = r * r;
-    return (r * lhs.Gradient() + l * rhs.Gradient()) / denominator;
+    return (r * lhs.Gradient() - l * rhs.Gradient()) / denominator;
   }
 };
+
+template <class LHS, class RHS, typename U = typename LHS::DATA_TYPE,
+          class V = typename RHS::DATA_TYPE>
+auto operator/(const LHS& lhs, const RHS& rhs) {
+  return BinaryOp<LHS, RHS, DivisionOp>(lhs, rhs);
+}
+
+template <class RHS, 
+          class V = typename RHS::DATA_TYPE, int D = RHS::DUAL_NUMBER_SIZE>
+auto operator/(const V& lhs, const RHS& rhs) {
+  Jet<V, RHS::DUAL_NUMBER_SIZE> const_lhs(lhs);
+  return BinaryOp<decltype(const_lhs), RHS, DivisionOp>(const_lhs, rhs);
+}
 
 /*
 template <class LHS, class RHS>

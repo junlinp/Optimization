@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.0)
 
 project(bal)
-set(CXX_STANDARD 11)
+set(CXX_STANDARD 17)
 add_library(${PROJECT_NAME}_lib load_problem.cc evaluate.cc)
 target_link_libraries(${PROJECT_NAME}_lib Eigen3::Eigen)
 
