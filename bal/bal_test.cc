@@ -73,6 +73,25 @@ TEST(DIVSION, JETD) {
 }
 
 
+TEST(Simple_Case,  JETD) {
+  auto functor = [](auto* input, auto* output) {
+    std::cout << "input " << input->value() << std::endl;
+    JETD<1> plus = *input + JETD<1>{1.0};
+    std::cout << "plus " << plus.value() << std::endl;
+    *output = sqrt(plus / 2.0);
+    std::cout << "output : " << output->value() << std::endl;
+  };
+
+  JETD<1> x{3.0, 0};
+  JETD<1> y;
+
+  functor(&x, &y);
+  std::cout << x.value() << std::endl;
+
+  EXPECT_NEAR(std::sqrt(2.0), y.value(), 1e-7);
+  EXPECT_NEAR(0.25, y.Gradient()(0), 1e-7);
+}
+
 
 TEST(Project_Function, JETD) {
   JETD<12> param[12];

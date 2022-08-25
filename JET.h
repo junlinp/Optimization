@@ -48,14 +48,18 @@ public:
 
   Jet(double value, Eigen::Matrix<double, N, 1> gradient)
       : value_(value), gradient_(gradient) {}
+
   template <class EXPR> Jet &operator=(const EXPR &expr) {
+    std::cout << "Assign Construction : " << expr.value() << std::endl;
     value_ = expr.value();
     gradient_ = expr.Gradient();
     return *this;
   }
 
   template <class EXPR>
-  Jet(const EXPR &expr) : value_{expr.value()}, gradient_(expr.Gradient()) {}
+  Jet(const EXPR &expr) : value_{expr.value()}, gradient_(expr.Gradient()) {
+    std::cout << "Copy Construction : " << value_ << std::endl;
+  }
 
   template <class EXPR, typename DataType = typename EXPR::DATA_TYPE>
   Jet &operator+=(const EXPR &expr) {
@@ -183,10 +187,11 @@ auto cos(const EXPR &oprand) {
 class SqrtOp {
 public:
   template <typename EXPR> static auto value_unary_op(const EXPR &expr) {
-    return sqrt(expr.value());
+    std::cout << "SqrtOp : " << expr.value() << std::endl;
+    return std::sqrt(expr.value());
   }
   template <typename EXPR> static auto Gradient_unary_op(const EXPR &expr) {
-    return (expr.Gradient() / sqrt(expr.value())).eval();
+    return (expr.Gradient() / std::sqrt(expr.value())).eval();
   }
 };
 template <typename EXPR, class DataType = typename EXPR::DATA_TYPE>
@@ -249,6 +254,8 @@ class PlusOp {
 public:
   template <typename LHS_OPRAND, typename RHS_OPRAND>
   static auto value_binary_op(const LHS_OPRAND &lhs, const RHS_OPRAND &rhs) {
+    std::cout << "Plus Op LHS : " << lhs.value() << std::endl;
+    //std::cout << "Plus Op RHS : " << rhs.value() << std::endl;
     return lhs.value() + rhs.value();
   }
 
@@ -306,6 +313,8 @@ class DivisionOp {
 public:
   template <class LHS_OPRAND, class RHS_OPRAND>
   static auto value_binary_op(const LHS_OPRAND &lhs, const RHS_OPRAND &rhs) {
+    std::cout << "DivisionOp LHS: " << lhs.value() << std::endl;
+    std::cout << "DivisionOp RHS: " << rhs.value() << std::endl;
     return lhs.value() /
            (rhs.value() +
             std::numeric_limits<typename RHS_OPRAND::DATA_TYPE>::epsilon());
@@ -328,6 +337,15 @@ template <class LHS, class RHS, typename U = typename LHS::DATA_TYPE,
           class V = typename RHS::DATA_TYPE>
 auto operator/(const LHS &lhs, const RHS &rhs) {
   return BinaryOp<LHS, RHS, DivisionOp>(lhs, rhs);
+}
+
+template <class LHS, class RHS, typename U = typename LHS::DATA_TYPE,
+std::enable_if_t<std::is_floating_point_v<RHS>, bool> = true>
+auto operator/(const LHS& lhs, const RHS &rhs) {
+  using RHS_J = Jet<typename LHS::DATA_TYPE, LHS::DUAL_NUMBER_SIZE>;
+  RHS_J rhs_{rhs};
+  std::cout << "operator/ RHS : " << rhs_.value() << std::endl;
+  return BinaryOp<LHS, RHS_J, DivisionOp>(lhs, rhs_);
 }
 
 // template <class LHS = double, class RHS,

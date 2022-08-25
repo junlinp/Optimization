@@ -36,7 +36,6 @@ struct ProjectFunction {
     bool operator()(T* camera_param, T* point, T* residual) const {
         T output_point[3];
         AngleAxisRotation(camera_param, point, output_point);
-        std::cout << "output_point[0] Gradient : " << output_point[0].Gradient() << std::endl;
         output_point[0] += camera_param[3];
         output_point[1] += camera_param[4];
         output_point[2] += camera_param[5];
