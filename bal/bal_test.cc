@@ -32,6 +32,7 @@ TEST(PLUS, JETD) {
   EXPECT_NEAR(1.0, error.Gradient()(0), 1e-7);
   EXPECT_NEAR(1.0, error.Gradient()(1), 1e-7);
 }
+
 TEST(MINUS, JETD) {
   JETD<2> xy[2];
   xy[0] = JETD<2>(1.0, 0);
@@ -71,17 +72,15 @@ TEST(DIVSION, JETD) {
   EXPECT_NEAR(0.5, error.Gradient()(0), 1e-7);
   EXPECT_NEAR(-0.25, error.Gradient()(1), 1e-7);
 }
-
-
-TEST(Simple_Case,  JETD) {
-  auto functor = [](auto* input, auto* output) {
+template<class T>
+void functor(T* input, T* output) {
     std::cout << "input " << input->value() << std::endl;
     JETD<1> plus = *input + JETD<1>{1.0};
     std::cout << "plus " << plus.value() << std::endl;
     *output = sqrt(plus / 2.0);
     std::cout << "output : " << output->value() << std::endl;
-  };
-
+}
+TEST(Simple_Case,  JETD) {
   JETD<1> x{3.0, 0};
   JETD<1> y;
 
@@ -92,7 +91,7 @@ TEST(Simple_Case,  JETD) {
   EXPECT_NEAR(0.25, y.Gradient()(0), 1e-7);
 }
 
-
+/*
 TEST(Project_Function, JETD) {
   JETD<12> param[12];
   double p[12] = {0.0157415,   -0.0127909, -0.00440085, -0.0340938,
@@ -171,8 +170,9 @@ TEST(Project_Function, JETD) {
     std::cout << "After Update : " << param[i].value() << std::endl;
   }
 }
+*/
 
-int main() {
-  testing::InitGoogleTest();
+int main(int argc, char** argv) {
+  testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

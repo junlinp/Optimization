@@ -2,9 +2,10 @@
 #define OPTIMIZATION_JET_H
 #include <assert.h>
 
-#include <limits>
-#include <type_traits>
 #include <iostream>
+#include <limits>
+#include <memory>
+#include <type_traits>
 
 #include "Eigen/Dense"
 
@@ -23,6 +24,13 @@ private:
   const Derive &impl() const { return *static_cast<const Derive *>(this); }
 };
 
+template <class Type,
+          typename U = typename std::remove_reference_t<Type>::DATA_TYPE>
+struct IMPL_JET_Concept_ {
+  using type = bool;
+};
+
+template <class Type> using JET_Concept = typename IMPL_JET_Concept_<Type>::type;
 // BASIC_TYPE should be float or double
 // and there is a problem to initialize a array of Jet.
 template <class BASIC_TYPE, int N>
@@ -49,16 +57,22 @@ public:
   Jet(double value, Eigen::Matrix<double, N, 1> gradient)
       : value_(value), gradient_(gradient) {}
 
-  template <class EXPR> Jet &operator=(const EXPR &expr) {
+  template <class EXPR, JET_Concept<EXPR> = true> 
+  Jet &operator=(const EXPR &expr) {
     std::cout << "Assign Construction : " << expr.value() << std::endl;
     value_ = expr.value();
     gradient_ = expr.Gradient();
     return *this;
   }
 
-  template <class EXPR>
+  template <class EXPR, JET_Concept<EXPR> = true>
   Jet(const EXPR &expr) : value_{expr.value()}, gradient_(expr.Gradient()) {
     std::cout << "Copy Construction : " << value_ << std::endl;
+  }
+
+  template <class EXPR, JET_Concept<EXPR> = true>
+  Jet(EXPR&& expr) : value_(expr.value()), gradient_(expr.Gradient()) {
+    std::cout << "Move Construction" << std::endl;
   }
 
   template <class EXPR, typename DataType = typename EXPR::DATA_TYPE>
@@ -110,15 +124,17 @@ template <int N> using JETF = Jet<float, N>;
 
 template <int N> using JETD = Jet<double, N>;
 
-template <class OPRAND, class OperatorImp>
-class UnaryOp
-    : public Expression<UnaryOp<OPRAND, OperatorImp>,
-                        typename OPRAND::DATA_TYPE, OPRAND::DUAL_NUMBER_SIZE> {
+template <class OPRAND, class OperatorImp,
+          typename RM_OPRAND = std::remove_reference_t<OPRAND>>
+class UnaryOp : public Expression<UnaryOp<OPRAND, OperatorImp>,
+                                  typename RM_OPRAND::DATA_TYPE,
+                                  RM_OPRAND::DUAL_NUMBER_SIZE> {
 public:
-  using DATA_TYPE = typename OPRAND::DATA_TYPE;
-  static const int DUAL_NUMBER_SIZE = OPRAND::DUAL_NUMBER_SIZE;
-  using GRADIENT_TYPE = Eigen::Matrix<DATA_TYPE, DUAL_NUMBER_SIZE, 1>;
-  UnaryOp(const OPRAND &oprand) : oprand_(oprand) {}
+  using DATA_TYPE = typename RM_OPRAND::DATA_TYPE;
+  static constexpr int DUAL_NUMBER_SIZE = RM_OPRAND::DUAL_NUMBER_SIZE;
+  using GRADIENT_TYPE = typename RM_OPRAND::GRADIENT_TYPE;
+
+  UnaryOp(OPRAND &&oprand) : oprand_{std::forward<OPRAND>(oprand)} {}
 
   DATA_TYPE value_imp() const { return OperatorImp::value_unary_op(oprand_); }
 
@@ -127,7 +143,7 @@ public:
   }
 
 private:
-  const OPRAND &oprand_;
+  OPRAND oprand_;
 };
 
 class MinusUnaryOp {
@@ -143,16 +159,19 @@ public:
   }
 };
 
+template <typename EXPR, JET_Concept<EXPR> = true>
+auto operator-(EXPR &&oprand) {
+  return UnaryOp<EXPR, MinusUnaryOp>(std::forward<EXPR>(oprand));
+}
+
 class SinOp {
 public:
   template <typename EXPR> static auto value_unary_op(const EXPR &expr) {
     return sin(expr.value());
   }
-
   template <typename EXPR> static auto Gradient_unary_op(const EXPR &expr) {
     using GRADIENT_TYPE = std::remove_cv_t<typename EXPR::GRADIENT_TYPE>;
     GRADIENT_TYPE gradient = expr.Gradient();
-
     for (int i = 0; i < 12; i++) {
       gradient(i) = std::cos(gradient(i));
     }
@@ -160,18 +179,20 @@ public:
   }
 };
 
+template <typename EXPR, JET_Concept<EXPR> = true> auto sin(EXPR &&oprand) {
+  return UnaryOp<EXPR, SinOp>(std::forward<EXPR>(oprand));
+}
+
 class CosOp {
 public:
   template <typename EXPR>
   static typename EXPR::DATA_TYPE value_unary_op(const EXPR &expr) {
     return cos(expr.value());
   }
-
   template <typename EXPR>
   static typename EXPR::GRADIENT_TYPE Gradient_unary_op(const EXPR &expr) {
     using GRADIENT_TYPE = std::remove_cv_t<typename EXPR::GRADIENT_TYPE>;
     GRADIENT_TYPE gradient = expr.Gradient();
-
     for (int i = 0; i < EXPR::DUAL_NUMBER_SIZE; i++) {
       gradient(i) = -std::sin(gradient(i));
     }
@@ -179,9 +200,8 @@ public:
   }
 };
 
-template <typename EXPR, class DataType = typename EXPR::DATA_TYPE>
-auto cos(const EXPR &oprand) {
-  return UnaryOp<EXPR, CosOp>(oprand);
+template <typename EXPR, JET_Concept<EXPR> = true> auto cos(EXPR &&oprand) {
+  return UnaryOp<EXPR, CosOp>(std::forward<EXPR>(oprand));
 }
 
 class SqrtOp {
@@ -194,19 +214,8 @@ public:
     return (expr.Gradient() / std::sqrt(expr.value())).eval();
   }
 };
-template <typename EXPR, class DataType = typename EXPR::DATA_TYPE>
-auto sqrt(const EXPR &oprand) {
-  return UnaryOp<EXPR, SqrtOp>(oprand);
-}
-
-template <typename EXPR, class DataType = typename EXPR::DATA_TYPE>
-auto operator-(const EXPR &oprand) {
-  return UnaryOp<EXPR, MinusUnaryOp>(oprand);
-}
-
-template <typename EXPR, class DataType = typename EXPR::DATA_TYPE>
-auto sin(const EXPR &oprand) {
-  return UnaryOp<EXPR, SinOp>(oprand);
+template <typename EXPR, JET_Concept<EXPR> = true> auto sqrt(EXPR &&oprand) {
+  return UnaryOp<EXPR, SqrtOp>(std::forward<EXPR>(oprand));
 }
 
 template <class LHS_OPRAND, class RHS_OPRAND> struct Binary_trait {
@@ -224,24 +233,48 @@ template <class LHS_OPRAND, class RHS_OPRAND> struct Binary_trait {
 };
 
 template <class LHS_OPRAND, class RHS_OPRAND, class OperatorImp,
-typename CVRM_LHS_OPRAND = std::remove_reference_t<LHS_OPRAND>,
-typename CVRM_RHS_OPRAND = std::remove_reference_t<RHS_OPRAND>
->
-class BinaryOp : public Expression<
-                     BinaryOp<CVRM_LHS_OPRAND, CVRM_RHS_OPRAND, OperatorImp>,
-                     typename Binary_trait<CVRM_LHS_OPRAND, CVRM_RHS_OPRAND>::DATA_TYPE,
-                     Binary_trait<CVRM_LHS_OPRAND, CVRM_RHS_OPRAND>::DUAL_NUMBER_SIZE> {
+          typename CVRM_LHS_OPRAND = std::remove_reference_t<LHS_OPRAND>,
+          typename CVRM_RHS_OPRAND = std::remove_reference_t<RHS_OPRAND>>
+class BinaryOp
+    : public Expression<
+          BinaryOp<LHS_OPRAND, RHS_OPRAND, OperatorImp>,
+          typename Binary_trait<CVRM_LHS_OPRAND, CVRM_RHS_OPRAND>::DATA_TYPE,
+          Binary_trait<CVRM_LHS_OPRAND, CVRM_RHS_OPRAND>::DUAL_NUMBER_SIZE> {
 public:
-  using DATA_TYPE = typename Binary_trait<CVRM_LHS_OPRAND, CVRM_RHS_OPRAND>::DATA_TYPE;
-  static const int DUAL_NUM_SIZE =
+  using DATA_TYPE =
+      typename Binary_trait<CVRM_LHS_OPRAND, CVRM_RHS_OPRAND>::DATA_TYPE;
+  static constexpr int DUAL_NUM_SIZE =
       Binary_trait<CVRM_LHS_OPRAND, CVRM_RHS_OPRAND>::DUAL_NUMBER_SIZE;
   using GRADIENT_TYPE =
       typename Binary_trait<CVRM_LHS_OPRAND, CVRM_RHS_OPRAND>::GRADIENT_TYPE;
 
-  BinaryOp(LHS_OPRAND&& lhs,RHS_OPRAND&& rhs)
-      : lhs_oprand_{std::forward<LHS_OPRAND>(lhs)}, rhs_oprand_{std::forward<LHS_OPRAND>(rhs)} {}
+  BinaryOp(LHS_OPRAND &&lhs, RHS_OPRAND &&rhs)
+      : lhs_oprand_{std::forward<LHS_OPRAND>(lhs)},
+        rhs_oprand_{std::forward<RHS_OPRAND>(rhs)} {
+    std::cout << "BinaryOp LHS : " << lhs_oprand_.value() << std::endl;
+    std::cout << "BinaryOp RHS : " << rhs_oprand_.value() << std::endl;
+    std::cout << "BinaryOp LHS address : " << std::addressof(lhs_oprand_) << std::endl;
+    std::cout << "BinaryOp RHS address : " << std::addressof(rhs_oprand_) << std::endl;
+    std::cout << "BinaryOp address : " << std::addressof(*this) << std::endl;
+  }
+
+
+  BinaryOp(BinaryOp&& other) : lhs_oprand_(other.lhs_oprand_), rhs_oprand_(other.rhs_oprand_) 
+  {
+    std::cout << "BinaryOp Move Constructor" << std::endl;
+  }
+
+
 
   DATA_TYPE value_imp() const {
+
+    std::cout << "BinaryOp value_imp LHS : " << lhs_oprand_.value()
+              << std::endl;
+    std::cout << "BinaryOp value_imp RHS : " << rhs_oprand_.value()
+              << std::endl;
+    std::cout << "BinaryOp value_imp LHS address : " << std::addressof(lhs_oprand_) << std::endl;
+    std::cout << "BinaryOp value_imp RHS address : " << std::addressof(rhs_oprand_) << std::endl;
+    std::cout << "BinaryOp value_imp address : " << std::addressof(*this) << std::endl;
     return OperatorImp::value_binary_op(lhs_oprand_, rhs_oprand_);
   }
 
@@ -250,8 +283,12 @@ public:
   }
 
 private:
- LHS_OPRAND lhs_oprand_;
- RHS_OPRAND rhs_oprand_;
+
+  BinaryOp(const BinaryOp& other) : lhs_oprand_(other.lhs_oprand_), rhs_oprand_(other.rhs_oprand_){}
+  BinaryOp& operator=(const BinaryOp&);
+
+  LHS_OPRAND lhs_oprand_;
+  RHS_OPRAND rhs_oprand_;
 };
 
 class PlusOp {
@@ -259,7 +296,7 @@ public:
   template <typename LHS_OPRAND, typename RHS_OPRAND>
   static auto value_binary_op(const LHS_OPRAND &lhs, const RHS_OPRAND &rhs) {
     std::cout << "Plus Op LHS : " << lhs.value() << std::endl;
-    //std::cout << "Plus Op RHS : " << rhs.value() << std::endl;
+    // std::cout << "Plus Op RHS : " << rhs.value() << std::endl;
     return lhs.value() + rhs.value();
   }
 
@@ -270,10 +307,11 @@ public:
 };
 
 // SFINAE
-template <class LHS, class RHS, class U = typename LHS::DATA_TYPE,
-          class V = typename RHS::DATA_TYPE>
-auto operator+(const LHS &lhs, const RHS &rhs) {
-  return BinaryOp<LHS, RHS, PlusOp>(lhs, rhs);
+template <class LHS, class RHS, JET_Concept<LHS> = true,
+          JET_Concept<RHS> = true>
+auto operator+(LHS &&lhs, RHS &&rhs) {
+  return BinaryOp<LHS, RHS, PlusOp>(std::forward<LHS>(lhs),
+                                    std::forward<RHS>(rhs));
 }
 
 class MinusBinaryOp {
@@ -287,10 +325,11 @@ public:
     return (lhs.Gradient() - rhs.Gradient()).eval();
   }
 };
-template <class LHS, class RHS, class U = typename LHS::DATA_TYPE,
-          class V = typename RHS::DATA_TYPE>
-auto operator-(const LHS &lhs, const RHS &rhs) {
-  return BinaryOp<LHS, RHS, MinusBinaryOp>(lhs, rhs);
+template <class LHS, class RHS, JET_Concept<LHS> = true,
+          JET_Concept<RHS> = true>
+auto operator-(LHS &&lhs, RHS &&rhs) {
+  return BinaryOp<LHS, RHS, MinusBinaryOp>(std::forward<LHS>(lhs),
+                                           std::forward<RHS>(rhs));
 }
 
 class MultipleOp {
@@ -301,16 +340,20 @@ public:
   }
   template <class LHS_OPRAND, class RHS_OPRAND>
   static auto Gradient_binary_op(const LHS_OPRAND &lhs, const RHS_OPRAND &rhs) {
-    static_assert(std::is_same_v<typename LHS_OPRAND::GRADIENT_TYPE, typename RHS_OPRAND::GRADIENT_TYPE>, "Gradient Data");
+    static_assert(std::is_same_v<typename LHS_OPRAND::GRADIENT_TYPE,
+                                 typename RHS_OPRAND::GRADIENT_TYPE>,
+                  "Gradient Data");
     using Gradient_Type = typename LHS_OPRAND::GRADIENT_TYPE;
-    return Gradient_Type{(rhs.value() * lhs.Gradient() + lhs.value() * rhs.Gradient()).eval()};
+    return Gradient_Type{
+        (rhs.value() * lhs.Gradient() + lhs.value() * rhs.Gradient()).eval()};
   }
 };
 
-template <class LHS, class RHS, class U = typename LHS::DATA_TYPE,
-          class V = typename RHS::DATA_TYPE>
-auto operator*(const LHS &lhs, const RHS &rhs) {
-  return BinaryOp<LHS, RHS, MultipleOp>(lhs, rhs);
+template <class LHS, class RHS, JET_Concept<LHS> = true,
+          JET_Concept<RHS> = true>
+auto operator*(LHS &&lhs, RHS &&rhs) {
+  return BinaryOp<LHS, RHS, MultipleOp>(std::forward<LHS>(lhs),
+                                        std::forward<RHS>(rhs));
 }
 
 class DivisionOp {
@@ -327,29 +370,37 @@ public:
   template <class LHS_OPRAND, class RHS_OPRAND>
   static auto Gradient_binary_op(const LHS_OPRAND &lhs, const RHS_OPRAND &rhs) {
     // f / g = f' * g - g' * f / g / g
-    static_assert(std::is_same_v<typename LHS_OPRAND::GRADIENT_TYPE, typename RHS_OPRAND::GRADIENT_TYPE>, "Gradient Data");
-    using Gradient_Type = typename LHS_OPRAND::GRADIENT_TYPE;
-
+    static_assert(std::is_same_v<typename LHS_OPRAND::GRADIENT_TYPE,
+                                 typename RHS_OPRAND::GRADIENT_TYPE>,
+                  "Gradient Data");
     auto &&l = lhs.value();
     auto &&r = rhs.value();
-    typename RHS_OPRAND::DATA_TYPE denominator = (r * r + std::numeric_limits<typename RHS_OPRAND::DATA_TYPE>::epsilon());
+    typename RHS_OPRAND::DATA_TYPE denominator =
+        (r * r +
+         std::numeric_limits<typename RHS_OPRAND::DATA_TYPE>::epsilon());
     return ((r * lhs.Gradient() - l * rhs.Gradient()) / denominator).eval();
   }
 };
 
-template <class LHS, class RHS, typename U = typename LHS::DATA_TYPE,
-          class V = typename RHS::DATA_TYPE>
-auto operator/(const LHS &lhs, const RHS &rhs) {
-  return BinaryOp<LHS, RHS, DivisionOp>(lhs, rhs);
+template <class LHS, class RHS, JET_Concept<LHS> = true,
+          JET_Concept<RHS> = true>
+auto operator/(LHS &&lhs, RHS &&rhs) {
+  return BinaryOp<LHS, RHS, DivisionOp>(std::forward<LHS>(lhs),
+                                        std::forward<RHS>(rhs));
 }
 
-template <class LHS, class RHS, typename U = typename LHS::DATA_TYPE,
-std::enable_if_t<std::is_floating_point_v<RHS>, bool> = true>
-auto operator/(const LHS& lhs, const RHS &rhs) {
-  using RHS_J = Jet<typename LHS::DATA_TYPE, LHS::DUAL_NUMBER_SIZE>;
+template <class LHS, class RHS, JET_Concept<LHS> = true,
+          std::enable_if_t<std::is_floating_point_v<RHS>, bool> = true>
+auto operator/(LHS &&lhs, RHS &&rhs) {
+  using DATA_TYPE = typename std::remove_reference_t<LHS>::DATA_TYPE;
+  constexpr int DUAL_NUMBER_SIZE =
+      std::remove_reference_t<LHS>::DUAL_NUMBER_SIZE;
+  using RHS_J = Jet<DATA_TYPE, DUAL_NUMBER_SIZE>;
+  static_assert(std::is_same_v<RHS_J, JETD<1>>, "null");
   RHS_J rhs_{rhs};
   std::cout << "operator/ RHS : " << rhs_.value() << std::endl;
-  return BinaryOp<LHS, RHS_J, DivisionOp>(lhs, rhs_);
+  return BinaryOp<LHS, RHS_J, DivisionOp>(std::forward<LHS>(lhs),
+                                          std::move(rhs_));
 }
 
 // template <class LHS = double, class RHS,
