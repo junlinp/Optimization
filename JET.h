@@ -223,19 +223,23 @@ template <class LHS_OPRAND, class RHS_OPRAND> struct Binary_trait {
   using GRADIENT_TYPE = typename LHS_OPRAND::GRADIENT_TYPE;
 };
 
-template <class LHS_OPRAND, class RHS_OPRAND, class OperatorImp>
+template <class LHS_OPRAND, class RHS_OPRAND, class OperatorImp,
+typename CVRM_LHS_OPRAND = std::remove_reference_t<LHS_OPRAND>,
+typename CVRM_RHS_OPRAND = std::remove_reference_t<RHS_OPRAND>
+>
 class BinaryOp : public Expression<
-                     BinaryOp<LHS_OPRAND, RHS_OPRAND, OperatorImp>,
-                     typename Binary_trait<LHS_OPRAND, RHS_OPRAND>::DATA_TYPE,
-                     Binary_trait<LHS_OPRAND, RHS_OPRAND>::DUAL_NUMBER_SIZE> {
+                     BinaryOp<CVRM_LHS_OPRAND, CVRM_RHS_OPRAND, OperatorImp>,
+                     typename Binary_trait<CVRM_LHS_OPRAND, CVRM_RHS_OPRAND>::DATA_TYPE,
+                     Binary_trait<CVRM_LHS_OPRAND, CVRM_RHS_OPRAND>::DUAL_NUMBER_SIZE> {
 public:
-  using DATA_TYPE = typename Binary_trait<LHS_OPRAND, RHS_OPRAND>::DATA_TYPE;
+  using DATA_TYPE = typename Binary_trait<CVRM_LHS_OPRAND, CVRM_RHS_OPRAND>::DATA_TYPE;
   static const int DUAL_NUM_SIZE =
-      Binary_trait<LHS_OPRAND, RHS_OPRAND>::DUAL_NUMBER_SIZE;
+      Binary_trait<CVRM_LHS_OPRAND, CVRM_RHS_OPRAND>::DUAL_NUMBER_SIZE;
   using GRADIENT_TYPE =
-      typename Binary_trait<LHS_OPRAND, RHS_OPRAND>::GRADIENT_TYPE;
-  BinaryOp(const LHS_OPRAND &lhs, const RHS_OPRAND &rhs)
-      : lhs_oprand_(lhs), rhs_oprand_(rhs) {}
+      typename Binary_trait<CVRM_LHS_OPRAND, CVRM_RHS_OPRAND>::GRADIENT_TYPE;
+
+  BinaryOp(LHS_OPRAND&& lhs,RHS_OPRAND&& rhs)
+      : lhs_oprand_{std::forward<LHS_OPRAND>(lhs)}, rhs_oprand_{std::forward<LHS_OPRAND>(rhs)} {}
 
   DATA_TYPE value_imp() const {
     return OperatorImp::value_binary_op(lhs_oprand_, rhs_oprand_);
@@ -246,8 +250,8 @@ public:
   }
 
 private:
-  const LHS_OPRAND &lhs_oprand_;
-  const RHS_OPRAND &rhs_oprand_;
+ LHS_OPRAND lhs_oprand_;
+ RHS_OPRAND rhs_oprand_;
 };
 
 class PlusOp {
