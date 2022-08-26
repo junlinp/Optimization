@@ -30,7 +30,8 @@ struct IMPL_JET_Concept_ {
   using type = bool;
 };
 
-template <class Type> using JET_Concept = typename IMPL_JET_Concept_<Type>::type;
+template <class Type>
+using JET_Concept = typename IMPL_JET_Concept_<Type>::type;
 // BASIC_TYPE should be float or double
 // and there is a problem to initialize a array of Jet.
 template <class BASIC_TYPE, int N>
@@ -57,7 +58,7 @@ public:
   Jet(double value, Eigen::Matrix<double, N, 1> gradient)
       : value_(value), gradient_(gradient) {}
 
-  template <class EXPR, JET_Concept<EXPR> = true> 
+  template <class EXPR, JET_Concept<EXPR> = true>
   Jet &operator=(const EXPR &expr) {
     std::cout << "Assign Construction : " << expr.value() << std::endl;
     value_ = expr.value();
@@ -71,7 +72,7 @@ public:
   }
 
   template <class EXPR, JET_Concept<EXPR> = true>
-  Jet(EXPR&& expr) : value_(expr.value()), gradient_(expr.Gradient()) {
+  Jet(EXPR &&expr) : value_(expr.value()), gradient_(expr.Gradient()) {
     std::cout << "Move Construction" << std::endl;
   }
 
@@ -211,7 +212,7 @@ public:
     return std::sqrt(expr.value());
   }
   template <typename EXPR> static auto Gradient_unary_op(const EXPR &expr) {
-    return (expr.Gradient() / std::sqrt(expr.value())).eval();
+    return (expr.Gradient() * 0.5 / std::sqrt(expr.value())).eval();
   }
 };
 template <typename EXPR, JET_Concept<EXPR> = true> auto sqrt(EXPR &&oprand) {
@@ -253,18 +254,18 @@ public:
         rhs_oprand_{std::forward<RHS_OPRAND>(rhs)} {
     std::cout << "BinaryOp LHS : " << lhs_oprand_.value() << std::endl;
     std::cout << "BinaryOp RHS : " << rhs_oprand_.value() << std::endl;
-    std::cout << "BinaryOp LHS address : " << std::addressof(lhs_oprand_) << std::endl;
-    std::cout << "BinaryOp RHS address : " << std::addressof(rhs_oprand_) << std::endl;
+    std::cout << "BinaryOp LHS address : " << std::addressof(lhs_oprand_)
+              << std::endl;
+    std::cout << "BinaryOp RHS address : " << std::addressof(rhs_oprand_)
+              << std::endl;
     std::cout << "BinaryOp address : " << std::addressof(*this) << std::endl;
   }
 
-
-  BinaryOp(BinaryOp&& other) : lhs_oprand_(other.lhs_oprand_), rhs_oprand_(other.rhs_oprand_) 
-  {
+  BinaryOp(BinaryOp &&other)
+      : lhs_oprand_(std::forward<decltype(lhs_oprand_)>(other.lhs_oprand_)),
+        rhs_oprand_(std::forward<decltype(rhs_oprand_)>(other.rhs_oprand_)) {
     std::cout << "BinaryOp Move Constructor" << std::endl;
   }
-
-
 
   DATA_TYPE value_imp() const {
 
@@ -272,9 +273,12 @@ public:
               << std::endl;
     std::cout << "BinaryOp value_imp RHS : " << rhs_oprand_.value()
               << std::endl;
-    std::cout << "BinaryOp value_imp LHS address : " << std::addressof(lhs_oprand_) << std::endl;
-    std::cout << "BinaryOp value_imp RHS address : " << std::addressof(rhs_oprand_) << std::endl;
-    std::cout << "BinaryOp value_imp address : " << std::addressof(*this) << std::endl;
+    std::cout << "BinaryOp value_imp LHS address : "
+              << std::addressof(lhs_oprand_) << std::endl;
+    std::cout << "BinaryOp value_imp RHS address : "
+              << std::addressof(rhs_oprand_) << std::endl;
+    std::cout << "BinaryOp value_imp address : " << std::addressof(*this)
+              << std::endl;
     return OperatorImp::value_binary_op(lhs_oprand_, rhs_oprand_);
   }
 
@@ -283,9 +287,9 @@ public:
   }
 
 private:
-
-  BinaryOp(const BinaryOp& other) : lhs_oprand_(other.lhs_oprand_), rhs_oprand_(other.rhs_oprand_){}
-  BinaryOp& operator=(const BinaryOp&);
+  BinaryOp(const BinaryOp &other)
+      : lhs_oprand_(other.lhs_oprand_), rhs_oprand_(other.rhs_oprand_) {}
+  BinaryOp &operator=(const BinaryOp &);
 
   LHS_OPRAND lhs_oprand_;
   RHS_OPRAND rhs_oprand_;

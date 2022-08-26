@@ -72,10 +72,21 @@ TEST(DIVSION, JETD) {
   EXPECT_NEAR(0.5, error.Gradient()(0), 1e-7);
   EXPECT_NEAR(-0.25, error.Gradient()(1), 1e-7);
 }
+
+TEST(JETD, Sqrt) {
+  JETD<1> x{4, 0};
+
+  JETD<1> y = sqrt(x);
+
+  EXPECT_NEAR(y.value(), 2.0, 1e-7);
+  EXPECT_NEAR(y.Gradient()(0), 0.25, 1e-7);
+}
+
 template<class T>
 void functor(T* input, T* output) {
     std::cout << "input " << input->value() << std::endl;
-    JETD<1> plus = *input + JETD<1>{1.0};
+    auto plus = *input + JETD<1>{1.0};
+    std::cout << "plus Gradient : " << plus.Gradient() << std::endl;
     std::cout << "plus " << plus.value() << std::endl;
     *output = sqrt(plus / 2.0);
     std::cout << "output : " << output->value() << std::endl;
@@ -88,10 +99,27 @@ TEST(Simple_Case,  JETD) {
   std::cout << x.value() << std::endl;
 
   EXPECT_NEAR(std::sqrt(2.0), y.value(), 1e-7);
-  EXPECT_NEAR(0.25, y.Gradient()(0), 1e-7);
+  EXPECT_NEAR(0.25 / std::sqrt(2), y.Gradient()(0), 1e-7);
 }
 
-/*
+TEST(JETD, Gradient_Checker) {
+  JETD<1> x{3.0, 0};
+  JETD<1> y;
+  functor(&x, &y);
+
+  JETD<1> x_plus{3.0 + 1e-7, 0};
+  JETD<1> x_sub{3.0 - 1e-7, 0};
+
+  JETD<1> y_plus, y_sub;
+  functor(&x_plus, &y_plus);
+  functor(&x_sub, &y_sub);
+
+  double gradient = (y_plus.value() - y_sub.value()) / (2e-7);
+
+  EXPECT_NEAR(gradient, y.Gradient()(0), 1e-7);
+
+
+}
 TEST(Project_Function, JETD) {
   JETD<12> param[12];
   double p[12] = {0.0157415,   -0.0127909, -0.00440085, -0.0340938,
@@ -99,12 +127,12 @@ TEST(Project_Function, JETD) {
                   5.88205e-13, -0.612,     0.571759,    -1.84708};
   JETD<12> param_plus[12];
   JETD<12> param_sub[12];
-  size_t check_index = 11;
+  size_t check_index = 2;
   for (size_t i = 0; i < 12; i++) {
     param[i] = JETD<12>(p[i], i);
     if (i == check_index) {
-      param_plus[i] =JETD<12>(p[i] + 1e-9, i);
-      param_sub[i] = JETD<12>(p[i] - 1e-9, i);
+      param_plus[i] =JETD<12>(p[i] + 1e-4, i);
+      param_sub[i] = JETD<12>(p[i] - 1e-4, i);
     } else {
       param_plus[i] =JETD<12>(p[i], i);
       param_sub[i] = JETD<12>(p[i], i);
@@ -123,7 +151,7 @@ TEST(Project_Function, JETD) {
   functor(param_sub, param_sub + 9, residual_sub);
 
   double checkout_gradient =
-      (residual_plus[1].value() - residual_sub[1].value()) / 2e-9;
+      (residual_plus[1].value() - residual_sub[1].value()) / 2e-4;
   std::cout << "checkout_gradient : " << checkout_gradient << std::endl;
   std::cout << "auto gradient : " << residual[1].Gradient()(check_index)
             << std::endl;
@@ -170,7 +198,6 @@ TEST(Project_Function, JETD) {
     std::cout << "After Update : " << param[i].value() << std::endl;
   }
 }
-*/
 
 int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);
