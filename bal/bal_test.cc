@@ -84,13 +84,10 @@ TEST(JETD, Sqrt) {
 
 template<class T>
 void functor(T* input, T* output) {
-    std::cout << "input " << input->value() << std::endl;
-    auto plus = *input + JETD<1>{1.0};
-    std::cout << "plus Gradient : " << plus.Gradient() << std::endl;
-    std::cout << "plus " << plus.value() << std::endl;
+    auto plus = *input + 1.0;
     *output = sqrt(plus / 2.0);
-    std::cout << "output : " << output->value() << std::endl;
 }
+
 TEST(Simple_Case,  JETD) {
   JETD<1> x{3.0, 0};
   JETD<1> y;
@@ -103,23 +100,29 @@ TEST(Simple_Case,  JETD) {
 }
 
 TEST(JETD, Gradient_Checker) {
-  JETD<1> x{3.0, 0};
-  JETD<1> y;
-  functor(&x, &y);
-
-  JETD<1> x_plus{3.0 + 1e-7, 0};
-  JETD<1> x_sub{3.0 - 1e-7, 0};
-
-  JETD<1> y_plus, y_sub;
-  functor(&x_plus, &y_plus);
-  functor(&x_sub, &y_sub);
-
-  double gradient = (y_plus.value() - y_sub.value()) / (2e-7);
-
-  EXPECT_NEAR(gradient, y.Gradient()(0), 1e-7);
-
+  double x = 3.0;
+  auto l = [](auto* input, auto* output) {
+    functor(input, output);
+  };
+  bool check = GradientCheck<1, 1>(l, &x, 1e-7);
+  EXPECT_TRUE(check);
 
 }
+
+TEST(JETD, Gradient_Checker_Project_Function) {
+  double p[12] = {0.0157415,   -0.0127909, -0.00440085, -0.0340938,
+                  -0.107514,   1.12022,    399.752,     -3.17706e-07,
+                  5.88205e-13, -0.612,     0.571759,    -1.84708};
+  auto lambda_functor = [](auto* input, auto* output) {
+    ProjectFunction functor(-332.65, 262.09);
+    functor(input, input + 9, output);
+  };
+  bool check = GradientCheck<2, 12>(lambda_functor, p, 1e-5);
+
+  EXPECT_TRUE(check);
+
+}
+
 TEST(Project_Function, JETD) {
   JETD<12> param[12];
   double p[12] = {0.0157415,   -0.0127909, -0.00440085, -0.0340938,
@@ -165,7 +168,7 @@ TEST(Project_Function, JETD) {
 
   size_t iterator = 0;
   double lambda = 1;
-  while (iterator++ < 1) {
+  while (iterator++ < 2) {
     Eigen::MatrixXd jacobian(2, 12);
     Eigen::VectorXd error(2);
     error(0) = residual[0].value();

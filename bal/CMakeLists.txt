@@ -2,12 +2,13 @@ cmake_minimum_required(VERSION 3.0)
 
 project(bal)
 set(CXX_STANDARD 17)
-add_library(${PROJECT_NAME}_lib load_problem.cc evaluate.cc)
-target_link_libraries(${PROJECT_NAME}_lib Eigen3::Eigen)
-
-add_executable(${PROJECT_NAME} bal_main.cc )
 find_package(Eigen3 REQUIRED)
 find_package(Ceres REQUIRED)
+
+add_library(${PROJECT_NAME}_lib load_problem.cc ceres_bal_solver.cc)
+target_link_libraries(${PROJECT_NAME}_lib Eigen3::Eigen ceres)
+
+add_executable(${PROJECT_NAME} bal_main.cc )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE Eigen3::Eigen ceres ${PROJECT_NAME}_lib)
 

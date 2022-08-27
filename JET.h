@@ -60,7 +60,6 @@ public:
 
   template <class EXPR, JET_Concept<EXPR> = true>
   Jet &operator=(const EXPR &expr) {
-    std::cout << "Assign Construction : " << expr.value() << std::endl;
     value_ = expr.value();
     gradient_ = expr.Gradient();
     return *this;
@@ -68,12 +67,10 @@ public:
 
   template <class EXPR, JET_Concept<EXPR> = true>
   Jet(const EXPR &expr) : value_{expr.value()}, gradient_(expr.Gradient()) {
-    std::cout << "Copy Construction : " << value_ << std::endl;
   }
 
   template <class EXPR, JET_Concept<EXPR> = true>
   Jet(EXPR &&expr) : value_(expr.value()), gradient_(expr.Gradient()) {
-    std::cout << "Move Construction" << std::endl;
   }
 
   template <class EXPR, typename DataType = typename EXPR::DATA_TYPE>
@@ -208,7 +205,6 @@ template <typename EXPR, JET_Concept<EXPR> = true> auto cos(EXPR &&oprand) {
 class SqrtOp {
 public:
   template <typename EXPR> static auto value_unary_op(const EXPR &expr) {
-    std::cout << "SqrtOp : " << expr.value() << std::endl;
     return std::sqrt(expr.value());
   }
   template <typename EXPR> static auto Gradient_unary_op(const EXPR &expr) {
@@ -252,33 +248,14 @@ public:
   BinaryOp(LHS_OPRAND &&lhs, RHS_OPRAND &&rhs)
       : lhs_oprand_{std::forward<LHS_OPRAND>(lhs)},
         rhs_oprand_{std::forward<RHS_OPRAND>(rhs)} {
-    std::cout << "BinaryOp LHS : " << lhs_oprand_.value() << std::endl;
-    std::cout << "BinaryOp RHS : " << rhs_oprand_.value() << std::endl;
-    std::cout << "BinaryOp LHS address : " << std::addressof(lhs_oprand_)
-              << std::endl;
-    std::cout << "BinaryOp RHS address : " << std::addressof(rhs_oprand_)
-              << std::endl;
-    std::cout << "BinaryOp address : " << std::addressof(*this) << std::endl;
   }
 
   BinaryOp(BinaryOp &&other)
       : lhs_oprand_(std::forward<decltype(lhs_oprand_)>(other.lhs_oprand_)),
         rhs_oprand_(std::forward<decltype(rhs_oprand_)>(other.rhs_oprand_)) {
-    std::cout << "BinaryOp Move Constructor" << std::endl;
   }
 
   DATA_TYPE value_imp() const {
-
-    std::cout << "BinaryOp value_imp LHS : " << lhs_oprand_.value()
-              << std::endl;
-    std::cout << "BinaryOp value_imp RHS : " << rhs_oprand_.value()
-              << std::endl;
-    std::cout << "BinaryOp value_imp LHS address : "
-              << std::addressof(lhs_oprand_) << std::endl;
-    std::cout << "BinaryOp value_imp RHS address : "
-              << std::addressof(rhs_oprand_) << std::endl;
-    std::cout << "BinaryOp value_imp address : " << std::addressof(*this)
-              << std::endl;
     return OperatorImp::value_binary_op(lhs_oprand_, rhs_oprand_);
   }
 
@@ -299,8 +276,6 @@ class PlusOp {
 public:
   template <typename LHS_OPRAND, typename RHS_OPRAND>
   static auto value_binary_op(const LHS_OPRAND &lhs, const RHS_OPRAND &rhs) {
-    std::cout << "Plus Op LHS : " << lhs.value() << std::endl;
-    // std::cout << "Plus Op RHS : " << rhs.value() << std::endl;
     return lhs.value() + rhs.value();
   }
 
@@ -316,6 +291,19 @@ template <class LHS, class RHS, JET_Concept<LHS> = true,
 auto operator+(LHS &&lhs, RHS &&rhs) {
   return BinaryOp<LHS, RHS, PlusOp>(std::forward<LHS>(lhs),
                                     std::forward<RHS>(rhs));
+}
+
+template <class LHS, class RHS, JET_Concept<LHS> = true,
+          std::enable_if_t<std::is_floating_point_v<RHS>, bool> = true>
+auto operator+(LHS &&lhs, RHS &&rhs) {
+  using DATA_TYPE = typename std::remove_reference_t<LHS>::DATA_TYPE;
+  constexpr int DUAL_NUMBER_SIZE =
+      std::remove_reference_t<LHS>::DUAL_NUMBER_SIZE;
+  using RHS_J = Jet<DATA_TYPE, DUAL_NUMBER_SIZE>;
+  static_assert(std::is_same_v<RHS_J, JETD<1>>, "null");
+  RHS_J rhs_{rhs};
+  return BinaryOp<LHS, RHS_J, PlusOp>(std::forward<LHS>(lhs),
+                                          std::move(rhs_));
 }
 
 class MinusBinaryOp {
@@ -364,8 +352,6 @@ class DivisionOp {
 public:
   template <class LHS_OPRAND, class RHS_OPRAND>
   static auto value_binary_op(const LHS_OPRAND &lhs, const RHS_OPRAND &rhs) {
-    std::cout << "DivisionOp LHS: " << lhs.value() << std::endl;
-    std::cout << "DivisionOp RHS: " << rhs.value() << std::endl;
     return lhs.value() /
            (rhs.value() +
             std::numeric_limits<typename RHS_OPRAND::DATA_TYPE>::epsilon());
@@ -402,26 +388,40 @@ auto operator/(LHS &&lhs, RHS &&rhs) {
   using RHS_J = Jet<DATA_TYPE, DUAL_NUMBER_SIZE>;
   static_assert(std::is_same_v<RHS_J, JETD<1>>, "null");
   RHS_J rhs_{rhs};
-  std::cout << "operator/ RHS : " << rhs_.value() << std::endl;
   return BinaryOp<LHS, RHS_J, DivisionOp>(std::forward<LHS>(lhs),
                                           std::move(rhs_));
 }
 
-// template <class LHS = double, class RHS,
-//           class RHS_Da = typename RHS::DATA_TYPE, int D =
-//           RHS::DUAL_NUMBER_SIZE>
-//  auto operator/(const LHS& lhs, const RHS& rhs) {
-//   Jet<LHS, RHS::DUAL_NUMBER_SIZE> const_lhs(lhs);
-//   return BinaryOp<decltype(const_lhs), RHS, DivisionOp>(const_lhs, rhs);
-// }
+template <int residual_num, int parameter_num, class Functor, class X>
+bool GradientCheck(Functor&& functor,X* x, double EPSILON) {
+  JETD<parameter_num> x_origin[parameter_num], y_origin[parameter_num];
+  for(int parameter_index = 0; parameter_index < parameter_num; parameter_index++) {
+    x_origin[parameter_index] = JETD<parameter_num>{x[parameter_index] + EPSILON, parameter_index};
+  }
+  functor(x_origin, y_origin);
 
-/*
-template <class LHS, class RHS>
-std::enable_if_t<std::is_same<typename LHS::DATA_TYPE, typename
-RHS::DATA_TYPE>::value, DivisionOp<LHS, RHS>> operator/(const LHS& lhs, const
-RHS& rhs) { return DivisionOp<LHS, RHS>(lhs, rhs);
+  for(int residual_index = 0; residual_index < residual_num; residual_index++) {
+    JETD<parameter_num> x_plus[parameter_num], x_sub[parameter_num];
+    JETD<parameter_num> y_plus[parameter_num], y_sub[parameter_num];
+    for(int parameter_index = 0; parameter_index < parameter_num; parameter_index++) {
+      int check_index = parameter_index;
+      std::memcpy(x_plus, x_origin, parameter_num * sizeof(JETD<parameter_num>));
+      std::memcpy(x_sub, x_origin, parameter_num * sizeof(JETD<parameter_num>));
+
+      x_plus[check_index] = JETD<parameter_num>{x[check_index] + EPSILON, check_index};
+      x_sub[check_index] = JETD<parameter_num>{x[check_index] - EPSILON, check_index};
+      functor(x_plus, y_plus);
+      functor(x_sub, y_sub);
+
+      double gradient = (y_plus[residual_index].value() - y_sub[residual_index].value()) * 0.5 / EPSILON;
+
+      if ( std::abs(gradient - y_origin[residual_index].Gradient()(check_index)) > EPSILON) {
+        return false;
+      }
+    }
+  }
+  return true;
 }
-*/
 
 template <class Functor, int residual_num, int parameter_num>
 class AutoDiffFunction {

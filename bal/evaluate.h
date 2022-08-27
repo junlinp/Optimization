@@ -2,6 +2,7 @@
 #include "Eigen/Sparse"
 #include "problem.h"
 #include "../JET.h"
+#include "ceres/rotation.h"
 
 void Evaluate(const Problem& problem, Eigen::VectorXd& error, Eigen::SparseMatrix<double>& jacobian);
 void LM(Problem& problem);
@@ -29,13 +30,18 @@ void AngleAxisRotation(T* angle_axis, T* point, T* output) {
     output[2] = costheta * point[2] + sintheta * w_cross_pt[2] + w[2] * tmp; 
 }
 
+
+
+// camera model see 
+// http://grail.cs.washington.edu/projects/bal/
+//
 struct ProjectFunction {
     ProjectFunction(double u, double v) : u(u), v(v) {}
     double u, v;
     template<class T>
-    bool operator()(T* camera_param, T* point, T* residual) const {
+    bool operator()(const T* camera_param,const T* point, T* residual) const {
         T output_point[3];
-        AngleAxisRotation(camera_param, point, output_point);
+        ceres::AngleAxisRotatePoint(camera_param, point, output_point);
         output_point[0] += camera_param[3];
         output_point[1] += camera_param[4];
         output_point[2] += camera_param[5];
