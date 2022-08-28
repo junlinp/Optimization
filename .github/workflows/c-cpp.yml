@@ -24,7 +24,7 @@ jobs:
       run: cmake -DCMAKE_INSTALL_PREFIX=Eigen3 -B eigen3_build -S ./eigen && cd eigen3_build && make install
       
     - name: Googletest installer
-      run: git clone https://github.com/google/googletest.git && cmake -DCMAKE_INSTALL_PREFIX=gtest -B gtest_build -S ./gtest && cd gtest_build && make install
+      run: git clone https://github.com/google/googletest.git && cmake -DCMAKE_INSTALL_PREFIX=gtest -B gtest_build -S ./googletest && cd gtest_build && make install
       
     - name: Flex and Bison
       run: sudo apt-get install -y flex bison
