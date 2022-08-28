@@ -6,7 +6,7 @@ find_package(Eigen3 REQUIRED)
 find_package(Ceres REQUIRED)
 
 add_library(${PROJECT_NAME}_lib load_problem.cc ceres_bal_solver.cc)
-target_link_libraries(${PROJECT_NAME}_lib Eigen3::Eigen ceres)
+target_link_libraries(${PROJECT_NAME}_lib Eigen3::Eigen ceres Graph)
 
 add_executable(${PROJECT_NAME} bal_main.cc )
 

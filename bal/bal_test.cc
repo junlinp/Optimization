@@ -109,6 +109,8 @@ TEST(JETD, Gradient_Checker) {
 
 }
 
+
+/*
 TEST(JETD, Gradient_Checker_Project_Function) {
   double p[12] = {0.0157415,   -0.0127909, -0.00440085, -0.0340938,
                   -0.107514,   1.12022,    399.752,     -3.17706e-07,
@@ -201,6 +203,7 @@ TEST(Project_Function, JETD) {
     std::cout << "After Update : " << param[i].value() << std::endl;
   }
 }
+*/
 
 int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);
