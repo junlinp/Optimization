@@ -21,23 +21,28 @@ struct hash<IndexPair> {
 struct CameraParam {
   // R, t, f, k1, k2
   double params[9];
+
+  double* data() {
+    return params;
+  }
 };
 
 struct Landmark {
-  double data[3];
+  double data_[3];
   Landmark() {}
-  Landmark(double x, double y, double z) {
-    data[0] = x;
-    data[1] = y;
-    data[2] = z;
+  Landmark(double x, double y, double z) : data_{x, y, z} {
   }
 
   double operator()(size_t index) const {
-    return data[index];
+    return data_[index];
   }
 
   double& operator()(size_t index) {
-    return data[index];
+    return data_[index];
+  }
+
+  double* data() {
+    return data_;
   }
 };
 
@@ -54,6 +59,13 @@ struct Observation {
 
   double& operator()(size_t index) {
     return data[index];
+  }
+
+  double u() {
+    return data[0];
+  }
+  double v() {
+    return data[1];
   }
 };
 
