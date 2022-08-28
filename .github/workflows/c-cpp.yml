@@ -27,7 +27,7 @@ jobs:
       uses: MarkusJx/googletest-installer@v1.1
       
     - name: Flex and Bison
-      run: apt-get install -y flex bison
+      run: sudo apt-get install -y flex bison
       
     - name: cmake configuration
       run: cmake -DEigen3_DIR=Eigen3 -B build -S .
