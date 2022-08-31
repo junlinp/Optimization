@@ -10,7 +10,7 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [ubuntu-latest]
+        os: [ubuntu-20.04]
     runs-on: ${{matrix.os}}
 
     steps:
@@ -24,10 +24,15 @@ jobs:
       run: cmake -DCMAKE_INSTALL_PREFIX=Eigen3 -B eigen3_build -S ./eigen && cd eigen3_build && make install
       
     - name: Googletest installer
-      uses: MarkusJx/googletest-installer@v1.1
+      run: sudo apt-get install libgtest-dev -y
+      
+    - name: Flex and Bison
+      run: sudo apt-get install -y flex bison
+    - name: Ceres-Solver
+      run: sudo apt-get update && sudo apt-get install -y libgoogle-glog-dev wget libgflags-dev libatlas-base-dev libsuitesparse-dev && wget http://ceres-solver.org/ceres-solver-2.1.0.tar.gz && tar zxf ceres-solver-2.1.0.tar.gz && mkdir ceres-bin && cd ceres-bin && cmake ../ceres-solver-2.1.0 && make -j3 && sudo make install
       
     - name: cmake configuration
       run: cmake -DEigen3_DIR=Eigen3 -B build -S .
     - name: make check
-      run: cd build && make && ./Linear_Solver_test
+      run: cd build && make -j3
 
