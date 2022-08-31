@@ -22,6 +22,9 @@ ADD_FLEX_BISON_DEPENDENCY(mps_scanner mps_parser)
 add_library(mps_io IO/mps_format_io.h IO/mps_format_io.cc ${BISON_mps_parser_OUTPUTS} ${FLEX_mps_scanner_OUTPUTS}) 
 target_include_directories(mps_io PUBLIC IO ${CMAKE_CURRENT_BINARY_DIR})
 
+set(HAMMING_DATASET_PATH "${CMAKE_SOURCE_DIR}/data/Hamming")
+configure_file(LinearProgramingConfig.h.in LinearProgramingConfig.h)
+
 add_library(LinearPrograming linear_programing.cc)
 target_link_libraries(LinearPrograming Eigen3::Eigen)
 
@@ -35,8 +38,6 @@ target_link_libraries(LPSolver PUBLIC mps_io ${FLEX_LIBRARIES} LinearPrograming)
 #glog::glog
 #)
 
-set(HAMMING_DATASET_PATH "${CMAKE_SOURCE_DIR}/data/Hamming")
-configure_file(LinearProgramingConfig.h.in LinearProgramingConfig.h)
 
 add_executable(Linear_Solver_test linear_solver_test.cpp)
 target_include_directories(Linear_Solver_test PUBLIC
