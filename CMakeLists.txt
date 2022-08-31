@@ -28,8 +28,8 @@ configure_file(LinearProgramingConfig.h.in LinearProgramingConfig.h)
 add_library(LinearPrograming linear_programing.cc)
 target_link_libraries(LinearPrograming Eigen3::Eigen)
 
-add_executable(LPSolver lp_solver.cpp)
-target_link_libraries(LPSolver PUBLIC mps_io ${FLEX_LIBRARIES} LinearPrograming)
+#add_executable(LPSolver lp_solver.cpp)
+#target_link_libraries(LPSolver PUBLIC mps_io ${FLEX_LIBRARIES} LinearPrograming)
 
 #add_executable(${PROJECT_NAME}_test optimization_test.cpp reduce.cc)
 #target_link_libraries(${PROJECT_NAME}_test PUBLIC
