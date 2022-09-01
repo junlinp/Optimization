@@ -20,6 +20,7 @@ struct hash<IndexPair> {
 }  // namespace std
 struct CameraParam {
   // R, t, f, k1, k2
+  // R is angleaxis 
   double params[9];
 
   double* data() {
