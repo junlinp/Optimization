@@ -34,16 +34,16 @@ class BlockSolver {
                 double vector_ptr[15];
                 std::memcpy(vector_ptr + 6, data_ptr, sizeof(double) * 9);
                 ceres::AngleAxisToRotationMatrix(data_ptr, vector_ptr);
-                Eigen::VectorXd se3_intrinsic_parameter(vector_ptr, 15); 
+                Eigen::VectorXd se3_intrinsic_parameter = Eigen::Map<Eigen::VectorXd>(vector_ptr, 15);
                 camera_se3_intrinsic_parameters_[camera_id] = se3_intrinsic_parameter;
             }
             // create cost function
             ceres::CostFunction* cost_function = nullptr;
             problem_.AddResidualBlock(cost_function, nullptr, camera_se3_intrinsic_parameters_[camera_id].data(), points_parameters_[point_id].data());
         }
-        
-        
       }
+
+
 
   std::unordered_map<size_t, Eigen::VectorXd> camera_se3_intrinsic_parameters_;
   std::unordered_map<size_t, Landmark> &points_parameters_;
