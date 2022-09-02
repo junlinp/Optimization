@@ -71,7 +71,7 @@ struct Observation {
 };
 
 struct Problem {
-  std::unordered_map<size_t, CameraParam> cameras_;
+  std::map<size_t, CameraParam> cameras_;
   std::map<size_t, Landmark> points_;
   std::map<IndexPair, Observation> observations_;
 
