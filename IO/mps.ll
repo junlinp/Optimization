@@ -1,6 +1,6 @@
 %{
 #include <string>
-#include "parser.hpp"
+#include "parser.h"
 
 int yyerror(char *s);
 

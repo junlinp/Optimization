@@ -2,7 +2,6 @@
 
 #include <memory>
 
-#include "../linear_solver.h"
 #include <iostream>
 void Evaluate(const Problem &problem, Eigen::VectorXd &error,
               Eigen::SparseMatrix<double> &jacobian) {
