@@ -209,7 +209,6 @@ void ADMMProblemSolver::Solve(Problem &problem) {
   std::cout << "Graph Generation finish" << std::endl;
 
   GraphNormalCut cut_solver;
-<<<<<<< HEAD
   auto &&[a_set, b_set] = cut_solver.Cut(graph);
   std::cout << "Graph Cut finish " << std::endl;
 
@@ -325,26 +324,4 @@ void ADMMProblemSolver::Solve(Problem &problem) {
     ASolver.UpdateConsensusAndDualVarialbe(consensus_variable, dual_variable);
     BSolver.UpdateConsensusAndDualVarialbe(consensus_variable, dual_variable);
   }
-=======
-  auto&& [a_set, b_set] = cut_solver.Cut(graph);
-  std::cout << "Graph Cut finish " << std::endl;
-
-  auto local_camera = problem.cameras_;
-  auto& points = problem.points_;
-  auto local_observation = problem.observations_;
-
-  for(auto&& [camera_id, see_points] : camera_see_points) {
-    size_t augmented_camera_id = local_camera.size();
-    for(size_t point_id : see_points) {
-        if (b_set.find(point_id) != b_set.end()) {
-            local_camera[augmented_camera_id] = local_camera[camera_id];
-
-            local_observation[{augmented_camera_id, point_id}] = local_observation[{camera_id, point_id}];
-            local_observation.erase({camera_id, point_id});
-        }
-    }
-  }
-  std::cout << "A set : " << a_set.size() << ", B set : " << b_set.size() << std::endl;
-
->>>>>>> f7700ad (feat:graph cut in admm)
 }
