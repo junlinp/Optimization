@@ -10,16 +10,14 @@ bool ProjectTransformCostFunction::Evaluate(const double *const *parameters,
   residual[1] = point[1] / point[2];
   if (jacobians != nullptr) {
 
-    double *jacobian_u = jacobians[0];
-    double *jacobian_v = jacobians[1];
+    double *jacobian = jacobians[0];
 
-    jacobian_u[0] = 1.0 / point[2];
-    jacobian_u[1] = 0.0;
-    jacobian_u[2] = -point[0] / point[2] / point[2];
-
-    jacobian_v[0] = 0.0;
-    jacobian_v[1] = 1.0 / point[2];
-    jacobian_v[2] = -point[1] / point[2] / point[2];
+    jacobian[0] = 1.0 / point[2];
+    jacobian[1] = 0.0;
+    jacobian[2] = -point[0] / point[2] / point[2];
+    jacobian[3] = 0.0;
+    jacobian[4] = 1.0 / point[2];
+    jacobian[5] = -point[1] / point[2] / point[2];
   }
   return true;
 }

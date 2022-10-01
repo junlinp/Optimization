@@ -35,3 +35,9 @@ def deps():
 		commit = "a762baa27529e50fc41a37824033245a6f0e9392",
 		remote ="https://github.com/junlinp/ceres-solver.git"
 	)
+    maybe(
+        git_repository,
+		name="googletest",
+		commit="93f08be653c36ddc6943e9513fc14c7292b4d007",
+		remote="https://github.com/google/googletest.git"
+	)

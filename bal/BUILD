@@ -24,3 +24,9 @@ cc_library(
 	hdrs = ["cost_function.h"],
 	deps = ["@ceres"]
 )
+
+cc_binary(
+	name="cost_function_test",
+	srcs = ["cost_function_test.cc"],
+	deps = ["cost_function", "@googletest//:gtest"]
+)
