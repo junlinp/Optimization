@@ -205,6 +205,16 @@ TEST(Project_Function, JETD) {
 }
 */
 
+TEST(SinglePoint, AML) {
+  Eigen::Vector3d gt_point(0.0, 0.0, 0.0);
+  Eigen::Quaternion gt_rotation(1.0, 0.0, 0.0, 0.0); // Identity
+  Eigen::Vector3d gt_translation = Eigen::Vector3d::Random();
+
+  Eigen::Vector2d uv = (gt_rotation * gt_point + gt_translation).hnormalized();
+
+
+}
+
 int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
