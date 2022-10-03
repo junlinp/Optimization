@@ -1,6 +1,9 @@
 #include "cost_function.h"
 
 #include "ceres/rotation.h"
+#include "Eigen/Dense"
+
+#include <iostream>
 
 bool ProjectTransformCostFunction::Evaluate(const double *const *parameters,
                                             double *residual,
@@ -25,11 +28,20 @@ bool ProjectTransformCostFunction::Evaluate(const double *const *parameters,
 bool RigidTransformCostFunction::Evaluate(const double *const *parameters,
                                           double *residuals,
                                           double **jacobians) const {
-  double const *quaternion = parameters[0];
+  //
+  // TODO: need to compute the gradient for the function from a quaterion to
+  // unit quaterion
+  //
+  double const *q = parameters[0];
+  double scale =
+      1.0 / sqrt(q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3]);
+  const double quaternion[4] = {scale * q[0], scale * q[1], scale * q[2],
+                                scale * q[3]};
+
   const double *transform = parameters[1];
   const double *point = parameters[2];
 
-  ceres::QuaternionRotatePoint(quaternion, point, residuals);
+  ceres::UnitQuaternionRotatePoint(quaternion, point, residuals);
   for (int i = 0; i < 3; i++) {
     residuals[i] += transform[i];
   }
@@ -40,17 +52,29 @@ bool RigidTransformCostFunction::Evaluate(const double *const *parameters,
     double *jacobian_point = jacobians[2];
 
     if (jacobian_quaternion) {
-      const double *v = quaternion + 1;
+      const double *v = &quaternion[1];
       const double w = quaternion[0];
       const double *a = point;
+      std::cout << "w : " << w << std::endl;
+      std::cout << "a[0] : " << a[0] << std::endl;
+      std::cout << "a[1] : " << a[1] << std::endl;
+      std::cout << "a[2] : " << a[2] << std::endl;
+
+      std::cout << "v[0] : " << v[0] << std::endl;
+      std::cout << "v[1] : " << v[1] << std::endl;
+      std::cout << "v[2] : " << v[2] << std::endl;
       // dw
       jacobian_quaternion[0 * 4 + 0] =
           2 * (w * a[0] - v[2] * a[1] + v[1] * a[2]);
       jacobian_quaternion[1 * 4 + 0] =
-          2 * (v[3] * a[0] + w * a[1] - v[0] * a[2]);
+          2 * (v[2] * a[0] + w * a[1] - v[0] * a[2]);
       jacobian_quaternion[2 * 4 + 0] =
           2 * (-v[1] * a[0] + v[0] * a[1] + w * a[2]);
-      double v_dot_a = v[0] * a[0] + v[1] + a[1] + v[2] + a[2];
+
+      std::cout << "df/dw : " << jacobian_quaternion[0] << "\n"
+                << jacobian_quaternion[4] << "\n"
+                << jacobian_quaternion[8] << std::endl;
+      double v_dot_a = v[0] * a[0] + v[1] * a[1] + v[2] * a[2];
 
       // dv
       jacobian_quaternion[0 * 4 + 1] = 2.0 * v_dot_a;
@@ -64,6 +88,18 @@ bool RigidTransformCostFunction::Evaluate(const double *const *parameters,
       jacobian_quaternion[2 * 4 + 1] = 2.0 * (a[1] + v[2] * a[0] - a[2] * v[0]);
       jacobian_quaternion[2 * 4 + 2] = 2.0 * (a[1] * v[2] - a[0] - a[2] * v[1]);
       jacobian_quaternion[2 * 4 + 3] = 2.0 * v_dot_a;
+      using Mat34 = Eigen::Matrix<double, 3, 4, Eigen::RowMajor>;
+
+      using Eigen::Map;
+
+      Map<Mat34> jacobian_quaternion_map(jacobian_quaternion);
+      Map<const Eigen::Vector4d> quaternion_map(q);
+
+      double triple_scale = scale * scale * scale;
+      jacobian_quaternion_map =
+          jacobian_quaternion_map *
+          (1.0 / scale * Eigen::Matrix4d::Identity() -
+           1.0 / triple_scale * quaternion_map * quaternion_map.transpose());
     }
 
     if (jacobian_transform) {

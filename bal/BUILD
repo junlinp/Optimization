@@ -22,7 +22,7 @@ cc_library(
 	name = "cost_function",
 	srcs = ["cost_function.cc"],
 	hdrs = ["cost_function.h"],
-	deps = ["@ceres"]
+	deps = ["@ceres", "@com_gitlab_libeigen_eigen//:eigen"]
 )
 
 cc_binary(
