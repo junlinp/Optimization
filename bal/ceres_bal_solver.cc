@@ -1,60 +1,39 @@
 #include "ceres_bal_solver.h"
 
-#include "ceres/autodiff_cost_function.h"
 #include "ceres/problem.h"
 #include "ceres/solver.h"
-#include "ceres/rotation.h"
 
 #include "problem.h"
+#include <ceres/cost_function.h>
 
-// camera model see 
+#include "cost_function_auto.h"
+
+// camera model see
 // http://grail.cs.washington.edu/projects/bal/
 //
-struct ProjectFunction {
-    ProjectFunction(double u, double v) : u(u), v(v) {}
-    double u, v;
-    template<class T>
-    bool operator()(const T* camera_param,const T* point, T* residual) const {
-        T output_point[3];
-        ceres::AngleAxisRotatePoint(camera_param, point, output_point);
-        output_point[0] += camera_param[3];
-        output_point[1] += camera_param[4];
-        output_point[2] += camera_param[5];
-
-        output_point[0] /= -output_point[2];
-        output_point[1] /= -output_point[2];
-        T focal = camera_param[6];
-        T K1 = camera_param[7];
-        T K2 = camera_param[8];
-
-        T p_norm_2 = output_point[0] * output_point[0] + output_point[1] * output_point[1];
-        T distorsion = T(1.0) + K1 * p_norm_2 + K2 * p_norm_2 * p_norm_2;
-        residual[0] = T(u) - focal * distorsion * output_point[0];
-        residual[1] = T(v) - focal * distorsion * output_point[1];
-
-        return true;
-    }
-};
-
 void CeresProblemSolver::Solve(Problem &problem) {
-    ceres::Problem pro;
-    for (auto&& [pairs, observation] : problem.observations_) {
-        ceres::CostFunction* cost_func = new ceres::AutoDiffCostFunction<ProjectFunction, 2, 9, 3>(new ProjectFunction{observation.u(), observation.v()});
+  ceres::Problem pro;
+  for (auto &&[pairs, observation] : problem.observations_) {
+    CameraParam &camera_parameter = problem.cameras_[pairs.first];
+    const double *camera_intrinsics = camera_parameter.data() + 6;
+    Landmark &points = problem.points_[pairs.second];
+    ceres::CostFunction *cost_func = ProjectFunction::CreateCostFunction(
+        camera_intrinsics[0], camera_intrinsics[1], camera_intrinsics[2],
+        observation.u(), observation.v());
+    pro.AddResidualBlock(cost_func, nullptr, camera_parameter.data(),
+                         points.data());
+  }
 
-        CameraParam& camera_parameter = problem.cameras_[pairs.first];
-        Landmark& points = problem.points_[pairs.second];
+  ceres::Solver::Options solver_options;
+  solver_options.num_threads = 16;
+  solver_options.minimizer_progress_to_stdout = true;
+  solver_options.max_num_iterations = 500;
+  ceres::Solver::Summary summary;
 
-        pro.AddResidualBlock(cost_func, nullptr, camera_parameter.data(), points.data());
-    }
+  ceres::Solve(solver_options, &pro, &summary);
 
-    ceres::Solver::Options solver_options;
-    solver_options.num_threads = 2;
-    solver_options.minimizer_progress_to_stdout = true;
-    solver_options.max_num_iterations = 500;
-    ceres::Solver::Summary summary;
-
-    ceres::Solve(solver_options, &pro, & summary);
-
-    std::cout << summary.BriefReport() << std::endl;
-    std::cout << "MSE : " << std::sqrt(summary.final_cost / problem.observations_.size()) << std::endl;
+  std::cout << summary.FullReport() << std::endl;
+  std::cout << "MSE : "
+            << std::sqrt(summary.final_cost / problem.observations_.size())
+            << std::endl;
 }

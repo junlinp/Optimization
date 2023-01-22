@@ -23,8 +23,8 @@ int main(int argc, char**argv) {
     CeresProblemSolver solver;
     solver.Solve(problem);
     auto end = std::chrono::high_resolution_clock::now();
+    std::cout << "Problem MSE : " << problem.MSE() << std::endl;
     std::cout << (end - start).count() / 1000.0 / 1000 / 1000 << " seconds." << std::endl;
 
-    //ceres::AngleAxisRotatePoint();
     return 0;
 }
