@@ -7,7 +7,8 @@
 struct ProjectFunction {
   ProjectFunction(double f, double k1, double k2, double u, double v)
       : focal_(f), k1_(k1), k2_(k2), u_(u), v_(v) {}
-
+  static constexpr int CAMERA_PARAMETER_SIZE = 6;
+  static const int POINT_PARAMETER_SIZE = 3;
   template <class T>
   bool operator()(const T *camera_param, const T *point, T *residual) const {
     T output_point[3];
@@ -33,7 +34,7 @@ struct ProjectFunction {
 
   template <typename... ARGS>
   static ceres::CostFunction *CreateCostFunction(ARGS &&...args) {
-    return new ceres::AutoDiffCostFunction<ProjectFunction, 2, 6, 3>(
+    return new ceres::AutoDiffCostFunction<ProjectFunction, 2, CAMERA_PARAMETER_SIZE, POINT_PARAMETER_SIZE>(
         new ProjectFunction(std::forward<ARGS>(args)...));
   }
 

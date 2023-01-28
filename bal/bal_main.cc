@@ -6,6 +6,7 @@
 
 #include <chrono>
 #include "ceres_bal_solver.h"
+#include "distributed_pcg_solver.h"
 
 int main(int argc, char**argv) {
     if(argc < 2) {
@@ -20,11 +21,13 @@ int main(int argc, char**argv) {
     std::cout << "Observation : " << problem.observations_.size() << std::endl;
     
     auto start = std::chrono::high_resolution_clock::now();
-    CeresProblemSolver solver;
+    //CeresProblemSolver solver;
+    DistributedPCGSolver solver;
     solver.Solve(problem);
     auto end = std::chrono::high_resolution_clock::now();
     std::cout << "Problem MSE : " << problem.MSE() << std::endl;
     std::cout << (end - start).count() / 1000.0 / 1000 / 1000 << " seconds." << std::endl;
+
 
     return 0;
 }
