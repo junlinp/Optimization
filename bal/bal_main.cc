@@ -22,6 +22,7 @@ int main(int argc, char**argv) {
     
     auto start = std::chrono::high_resolution_clock::now();
     //CeresProblemSolver solver;
+    std::cout << "Problem Initial MSE : " << problem.MSE() << std::endl;
     DistributedPCGSolver solver;
     solver.Solve(problem);
     auto end = std::chrono::high_resolution_clock::now();
