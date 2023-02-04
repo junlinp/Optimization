@@ -12,13 +12,18 @@
 #include <utility>
 
 template<class Jc, class Jp, class R, class DC, class DP>
-void SolveNormalFormula(const Jc& jc, const Jp& jp, const R& r, DC& delta_c, DP& delta_p) {
+void SolveNormalFormula(const Jc& jc, const Jp& jp, const R& r, double mu, DC& delta_c, DP& delta_p) {
 
   using SM = Eigen::SparseMatrix<double>;
   std::cout << "B" << std::endl;
-  SM U = SM(jc.transpose()) * jc;
+  SM I_c = SM(jc.cols(), jc.cols());
+  SM I_p = SM(jp.cols(), jp.cols());
+  I_c.setIdentity();
+  I_p.setIdentity();
+
+  SM U = SM(jc.transpose()) * jc + mu * I_c; 
   SM W = SM(jc.transpose()) * jp;
-  SM V = SM(jp.transpose()) * jp;
+  SM V = SM(jp.transpose()) * jp + mu * I_p;
   
   std::cout << "Jc : " << jc.rows() << " , " << jc.cols() << std::endl;
   std::cout << "Jp : " << jp.rows() << " , " << jp.cols() << std::endl;
@@ -184,25 +189,69 @@ void DistributedPCGSolver::Solve(Problem &problem) {
 
   // Build jacobian
 
-  Eigen::VectorXd delta_c, delta_p;
-  for (int k = 0; k < Jp.outerSize(); ++k) {
-    for (Eigen::SparseMatrix<double>::InnerIterator it(Jp, k); it; ++it) {
-      it.value();
-      it.row();   // row index
-      it.col();   // col index (here it is equal to k)
-      it.index(); // inner index, here it is equal to it.row()
+  double mu = 5.0;
+  double v = 1.0;
 
-      //std::cout << "Jp[" << it.row() << "," << it.col() << "] : " << it.value() << std::endl;
+  size_t epoch = 0;
+  size_t max_epoches = 100;
+
+  while(epoch++ < max_epoches) {
+    for (auto &f : evaluate_functions) {
+      f();
     }
-  }
-  SolveNormalFormula(Jc, Jp, r, delta_c, delta_p);
-  // Solver
-  std::cout << "camera_variable size : " << camera_variable.rows() << " delta_c : " << delta_c.rows() << std::endl;
-  double alpha = 0.001;
-  camera_variable += alpha * delta_c;
 
-  std::cout << "point_variable size : " << point_variable.rows() << " delta_p : " << delta_p.rows() << std::endl;
-  point_variable += alpha * delta_p;
+    for (auto &f : jc_jp_functions) {
+      f();
+    }
+    Jc.setFromTriplets(jc_triple_vector.begin(), jc_triple_vector.end());
+    Jp.setFromTriplets(jp_triple_vector.begin(), jp_triple_vector.end());
+    std::cout << "jc nnz : " << Jc.nonZeros() << std::endl;
+    std::cout << "jp nnz : " << Jp.nonZeros() << std::endl;
+    jc_triple_vector.clear();
+    jp_triple_vector.clear();
+    Eigen::VectorXd delta_c, delta_p;
+    SolveNormalFormula(Jc, Jp, r, mu, delta_c, delta_p);
+
+    auto camera_variable_old = camera_variable;
+    auto point_variable_old = point_variable;
+    double old_residuals_norm = r.norm();
+
+    camera_variable +=  delta_c;
+    point_variable += delta_p;
+
+
+    for (auto &f : evaluate_functions) {
+      f();
+    }
+
+    for (auto &f : jc_jp_functions) {
+      f();
+    }
+    Jc.setFromTriplets(jc_triple_vector.begin(), jc_triple_vector.end());
+    Jp.setFromTriplets(jp_triple_vector.begin(), jp_triple_vector.end());
+    jc_triple_vector.clear();
+    jp_triple_vector.clear();
+    auto gc = -Jc.transpose() * r;
+    auto gp = -Jp.transpose() * r;
+    double rho = (old_residuals_norm - r.norm()) / (delta_c.dot(mu * delta_c + gc) + delta_p.dot(mu * delta_p + gp));
+
+    if (rho > 0) {
+      mu *= std::max(1.0 / 3, 1 - std::pow(2 * rho - 1, 3));
+      v = 2;
+    } else {
+      camera_variable = camera_variable_old;
+      point_variable = point_variable_old;
+      mu *= v;
+      v *= 2;
+    }
+    // Solver
+    //std::cout << "camera_variable size : " << camera_variable.rows()
+              //<< " delta_c : " << delta_c.rows() << std::endl;
+
+
+    //std::cout << "point_variable size : " << point_variable.rows()
+              //<< " delta_p : " << delta_p.rows() << std::endl;
+  }
 
   
   // Write back
