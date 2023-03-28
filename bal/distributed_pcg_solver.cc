@@ -10,6 +10,104 @@
 #include <map>
 #include <set>
 #include <utility>
+template <class JC, class JP, class V, class X>
+Eigen::VectorXd MatrixPlusX(const JC& jc, const JP& jp, const V& v, const X& x) {
+  Eigen::VectorXd jc_mul_x = jc * x;
+
+  Eigen::VectorXd jc_t_jc_mul_x = jc.transpose() * jc_mul_x;
+  auto llt_solve = Eigen::SimplicialLLT<V>();
+  llt_solve.compute(v); 
+  Eigen::VectorXd t = llt_solve.solve(jp.transpose() * jc_mul_x);
+  t = jp * t;
+  t = jc.transpose() * t;
+  return jc_t_jc_mul_x - t;
+}
+
+template<class JC, class JP, class V, class X, class B>
+X CG(const JC& jc, const JP& jp, const V& v, const B& b, const X& x0) {
+  Eigen::VectorXd p = b - MatrixPlusX(jc, jp, v, x0);
+  auto r = p;
+  X x = x0;
+  for (int k = 0; k < x0.rows(); k++) {
+    auto norm_rk = r.dot(r);
+    auto Apk = MatrixPlusX(jc, jp, v, p);
+    auto norm_p0 = p.dot(Apk);
+    x += norm_rk / norm_p0 * p;
+    r = b - MatrixPlusX(jc, jp, v, x);
+    p = r + norm_rk / r.dot(r) * p;
+    std::cout << k << "CG residuals : " << r.norm() << std::endl;
+  }
+  return x;
+}
+
+Eigen::VectorXd PCG(const Eigen::MatrixXd& A, const Eigen::VectorXd& b) {
+  Eigen::VectorXd x0(b.rows());
+  x0.setRandom();
+
+  Eigen::MatrixXd M = A.diagonal().asDiagonal();
+  std::cout << "M " << M.rows() << " : " << M.cols() << std::endl;
+  Eigen::VectorXd r0 = b - A * x0;
+  Eigen::VectorXd p = M.llt().solve(r0);
+  double r_dot_z = r0.dot(p);
+  Eigen::VectorXd w = A * p;
+  double alpha = r0.dot(p) / p.dot(w);
+  Eigen::VectorXd x = x0 + alpha * p;
+  Eigen::VectorXd r = r0 - alpha * w;
+  int k = 1;
+  int max_k = 1024 * 1024;
+  while (r.squaredNorm() > std::numeric_limits<double>::min() && k < max_k) {
+    Eigen::VectorXd z = M.llt().solve(r);
+    double new_r_dot_z = r.dot(z);
+    double beta =  new_r_dot_z / r_dot_z;
+    r_dot_z = new_r_dot_z;
+    p = z + beta * p;
+    w = A * p;
+    alpha = r_dot_z / p.dot(w);
+    x += alpha * p;
+    r = r - alpha * w;
+    k++;
+  }
+  std::cout << "PCG k " << k << std::endl; 
+  return x;
+}
+
+Eigen::VectorXd CG(const Eigen::MatrixXd& A, const Eigen::VectorXd& b, const Eigen::VectorXd x0) {
+  Eigen::VectorXd x = x0;
+  x.setRandom();
+  Eigen::VectorXd p = b - A * x;
+  Eigen::VectorXd r = p;
+  size_t max_k = 1;
+  double last_norm_r = r.dot(r);
+  double norm_r = last_norm_r;
+  for (size_t k = 0; k < max_k; k++) {
+    double norm_p = p.dot(A * p);
+    if (norm_p < std::numeric_limits<double>::epsilon()) {
+      break;
+    }
+    // std::cout << "move : " << (norm_r / norm_p * p).norm() << std::endl;
+    x = x + norm_r / norm_p * p;
+    r = b - A * x;
+    last_norm_r = norm_r;
+    norm_r = r.dot(r);
+    p = r + last_norm_r / norm_r * p;
+
+    if (r.norm() < 1e-6) {
+      break;
+    }
+    std::cout << k << " norm_r : " << norm_r << std::endl;
+  }
+  std::cout << "CG residuals : " << r.norm() << std::endl;
+// fill A and b
+  Eigen::ConjugateGradient<Eigen::MatrixXd, Eigen::Lower | Eigen::Upper> cg;
+  cg.compute(A);
+  cg.solve(b);
+  std::cout << "#iterations:     " << cg.iterations() << std::endl;
+  std::cout << "estimated error: " << cg.error() << std::endl;
+  // update b, and solve again
+  return cg.solve(b);
+  return x;
+}
+
 
 template<class Jc, class Jp, class R, class DC, class DP>
 void SolveNormalFormula(const Jc& jc, const Jp& jp, const R& r, double mu, DC& delta_c, DP& delta_p) {
@@ -27,34 +125,31 @@ void SolveNormalFormula(const Jc& jc, const Jp& jp, const R& r, double mu, DC& d
   
   std::cout << "Jc : " << jc.rows() << " , " << jc.cols() << std::endl;
   std::cout << "Jp : " << jp.rows() << " , " << jp.cols() << std::endl;
-  std::cout << "V : " << V.rows() << " , " << V.cols() << std::endl;
-  std::cout << "C" << std::endl;
 
   auto llt_solve = Eigen::SimplicialLLT<SM>();
   llt_solve.compute(V);
 
-  std::cout << "V nnz : " << V.nonZeros() << std::endl;
 
   SM jpt = jp.transpose();
-  std::cout << "jpt nnz : " << jpt.nonZeros() << std::endl;
-
   Eigen::VectorXd jpT_r = jp.transpose() * r;
-
-  std::cout << "jp_T * r norm : " << jpT_r.norm() << std::endl;
-
 
   Eigen::MatrixXd g = -jc.transpose() * r + W * llt_solve.solve(jpT_r);
 
-  std::cout << "a" << std::endl;
 
   Eigen::MatrixXd A = U - W * llt_solve.solve(Eigen::MatrixXd(W.transpose()));
 
-  std::cout << "delta_c" << std::endl;
-  delta_c = A.ldlt().solve(g);
+  delta_c = Eigen::VectorXd(jc.cols());
+  delta_c.setRandom();
+  //delta_c = CG(jc, jp, V, g, delta_c);
+  Eigen::VectorXd t = A.llt().solve(g);
+  std::cout << "b - Ax : " << (g - A * t).norm() << std::endl;
+  delta_c = CG(A, g, delta_c);
+  std::cout << "CG b - Ax : " << (g - A * delta_c).norm() << std::endl;
 
-  std::cout << "delta_p" << std::endl;
+  //delta_c = PCG(A, g);
+  //std::cout << "PCG b - Ax : " << (g - A * delta_c).norm() << std::endl;
+
   std::cout << "r norm : " << r.norm() << std::endl;
-  std::cout << "WT * delta_c norm : " << (W.transpose() * delta_c).norm() << std::endl;
   delta_p =
       -llt_solve.solve( jpT_r + W.transpose() * delta_c);
 
@@ -62,6 +157,9 @@ void SolveNormalFormula(const Jc& jc, const Jp& jp, const R& r, double mu, DC& d
   std::cout << "delta_p norm : " << delta_p.norm() << std::endl;
 
 }
+
+
+
 
 void DistributedPCGSolver::Solve(Problem &problem) {
   using SM = Eigen::SparseMatrix<double>;
@@ -193,7 +291,8 @@ void DistributedPCGSolver::Solve(Problem &problem) {
   double v = 1.0;
 
   size_t epoch = 0;
-  size_t max_epoches = 100;
+  size_t max_epoches = 16;
+  double epsilon = 1e-6;
 
   while(epoch++ < max_epoches) {
     for (auto &f : evaluate_functions) {
@@ -211,7 +310,9 @@ void DistributedPCGSolver::Solve(Problem &problem) {
     jp_triple_vector.clear();
     Eigen::VectorXd delta_c, delta_p;
     SolveNormalFormula(Jc, Jp, r, mu, delta_c, delta_p);
-
+    if (delta_c.norm() < epsilon * camera_variable.norm() && delta_p.norm() < epsilon * point_variable.norm()) {
+      break;
+    }
     auto camera_variable_old = camera_variable;
     auto point_variable_old = point_variable;
     double old_residuals_norm = r.norm();
