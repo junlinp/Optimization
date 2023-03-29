@@ -33,13 +33,15 @@ TEST(RGD, Basic) {
         G.block<1, 3>(8, 6) = A.row(2);
         std::cout << " G : " << G << std::endl;
         std::vector<Eigen::Matrix3d> res;
-
+        
+        Eigen::Matrix<double, 3, 3, Eigen::RowMajor> row_major_identity = Eigen::Matrix3d::Identity();
+        Eigen::Map<Eigen::Matrix<double, 9, 1>> vector_identity(row_major_identity.data());
         for (const auto& item : x) {
             Eigen::Matrix<double, 3, 3, Eigen::RowMajor> row_major_x = item;
             Eigen::Map<Eigen::Matrix<double, 9, 1>> vector_x(row_major_x.data());
 
-            Eigen::Matrix<double, 9, 1> jacobian = 2.0 * G.transpose() * G * vector_x;
-
+            Eigen::Matrix<double, 9, 1> jacobian = 2.0 * (G * vector_x - vector_identity).transpose() * G;
+            std::cout << "jacobian : " << jacobian << std::endl;
             Eigen::Map<Eigen::Matrix<double, 3, 3, Eigen::RowMajor>> jacobian_row_major(jacobian.data());
 
             res.push_back(jacobian_row_major);
@@ -49,7 +51,11 @@ TEST(RGD, Basic) {
   };
 
   BasicCostFunction function;
-  std::vector<Eigen::Matrix3d> x_init{Eigen::Matrix3d::Identity()};
+  Eigen::Matrix3d x0;
+  x0 << 1.0, 0.0, 0.0,
+        0.0, 0.707, -0.707,
+        0.0, -0.707, 0.707;
+  std::vector<Eigen::Matrix3d> x_init{x0};
   rgd(function, &x_init);
   std::cout << "Solution : " << x_init[0] << std::endl;
 }
