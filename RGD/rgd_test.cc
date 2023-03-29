@@ -53,8 +53,8 @@ TEST(RGD, Basic) {
   BasicCostFunction function;
   Eigen::Matrix3d x0;
   x0 << 1.0, 0.0, 0.0,
-        0.0, 0.707, -0.707,
-        0.0, -0.707, 0.707;
+        0.0, 0.99, 0.0,
+        0.0, 0.0, 0.999;
   std::vector<Eigen::Matrix3d> x_init{x0};
   rgd(function, &x_init);
   std::cout << "Solution : " << x_init[0] << std::endl;
