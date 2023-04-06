@@ -5,28 +5,37 @@
 namespace {
 
 Eigen::Matrix3d SkewPart(const Eigen::Matrix3d &X) {
-  return 0.5 * (X.transpose() - X);
+  return 0.5 * (X - X.transpose());
 }
 
 Eigen::Matrix3d MatrixProject(const Eigen::Matrix3d &X, const Eigen::Matrix3d &U) {
-  return X * SkewPart(X.transpose() * U);
+  Eigen::Matrix3d XTU = X.transpose() * U;
+  return X * SkewPart(XTU);
 }
 
 Eigen::Matrix3d MatrixRetraction(const Eigen::Matrix3d &X, const Eigen::Matrix3d &V) {
-  Eigen::Matrix3d Q =  (X + V).householderQr().householderQ();
-  Eigen::Matrix3d R = (X + V).householderQr().matrixQR();
-  std::cout << "X : " << X << std::endl;
-  std::cout << " V : " << V << std::endl;
-  std::cout << "X + V : " << X + V << std::endl;
-  std::cout  << "Q * R : " << Q * R << std::endl;
+  auto QR_solver = (X + V).householderQr();
+  Eigen::Matrix3d Q =  QR_solver.householderQ();
+  Eigen::Matrix3d R = Q.transpose() * (X + V);
+  // std::cout << "X : " << X << std::endl;
+  // std::cout << " V : " << V << std::endl;
+  // std::cout << "X + V : " << X + V << std::endl;
+  // std::cout  << "Q * R : " << Q * R << std::endl;
   Eigen::Matrix3d identity = Eigen::Matrix3d::Identity();
-  for (int i = 0; i < 3; i++) {
-    if (R(i, i) < 0.0) {
+  if (Q.determinant() < 0.0) {
+    for (int i = 0; i < 3; i++) {
+      if (R(i, i) < 0.0) {
         identity(i, i) = -1.0;
     }
+    }
   }
-  Q = identity * Q;
-  std::cout << "Retraction Diff : " << (Q - X).array().sum() << std::endl;
+  Q = Q * identity;
+  // std::cout << "Retraction Diff : " << (Q - X).array().sum() << std::endl;
+  // std::cout << "det(Q) : " << Q.determinant() << std::endl;
+  // std::cout << "det(X) : " << X.determinant() << std::endl;
+  // std::cout << "R : " << identity * R << std::endl;
+  // std::cout << "Q : " << Q << std::endl;
+  // std::cout << "X : " << X << std::endl;
   return Q;
 }
 }
@@ -55,18 +64,20 @@ class SO3Manifold {
         Eigen::Map<const Eigen::Matrix3d> matrix_vector(tangent_vector.data());
 
         Eigen::Matrix3d temp = MatrixRetraction(matrix_x, matrix_vector);
-        std::cout << "det : " << temp.determinant() << std::endl;
+        //std::cout << "Retraction det : " << temp.determinant() << std::endl;
         Eigen::Map<Vector> res(temp.data());
         return res;
     }
-     static bool CheckTangentVector(const Vector& x, const TangentVector& tangent_vector) {
-        Eigen::Map<const Eigen::Matrix3d> matrix_x(x.data());
-        Eigen::Map<const Eigen::Matrix3d> matrix_gradient(tangent_vector.data());
+    static bool CheckTangentVector(const Vector &x,
+                                   const TangentVector &tangent_vector) {
+      Eigen::Map<const Eigen::Matrix3d> matrix_x(x.data());
+      Eigen::Map<const Eigen::Matrix3d> matrix_gradient(tangent_vector.data());
 
-        Eigen::Matrix3d res = matrix_x * matrix_gradient - (matrix_x * matrix_gradient).transpose();
-        
-        return res.array().sum() < 1e-6;
-     }
+      Eigen::Matrix3d res =
+          matrix_x * matrix_gradient - (matrix_x * matrix_gradient).transpose();
+
+      return res.array().sum() < 1e-6;
+    }
 };
 
 class SO3CostFunctionInterface {

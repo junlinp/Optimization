@@ -35,10 +35,10 @@ TEST(RGD, Basic) {
         std::cout << " G : " << G << std::endl;
         std::vector<SO3Manifold::Vector> res;
         
-        Eigen::Matrix<double, 3, 3, Eigen::RowMajor> row_major_identity = Eigen::Matrix3d::Identity();
+        Eigen::Matrix<double, 3, 3> row_major_identity = Eigen::Matrix3d::Identity();
         Eigen::Map<Eigen::Matrix<double, 9, 1>> vector_identity(row_major_identity.data());
         for (const auto& item : x) {
-
+            std::cout << "Error : " << (G * item - vector_identity).squaredNorm() << std::endl;
             Eigen::Matrix<double, 9, 1> jacobian = 2.0 * G.transpose() * (G * item - vector_identity);
             std::cout << "jacobian : " << jacobian << std::endl;
 
@@ -50,11 +50,11 @@ TEST(RGD, Basic) {
 
   BasicCostFunction function;
   SO3Manifold::Vector x0;
-  double theta = 0.2;
+  double theta = 3.14 * 0.4;
   x0 << 1.0, 0.0, 0.0,
-        0.0, std::cos(theta), std::sin(theta),
-        0.0, -std::sin(theta), std::cos(theta);
-
+        0.0, std::cos(theta), -std::sin(theta),
+        0.0, std::sin(theta), std::cos(theta);
+  std::cout << "x0 " << x0 << std::endl;
   std::vector<SO3Manifold::Vector> x_init{x0};
 
   rgd(function, &x_init);
