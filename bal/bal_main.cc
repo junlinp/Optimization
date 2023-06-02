@@ -6,7 +6,7 @@
 
 #include <chrono>
 #include "ceres_bal_solver.h"
-
+#include "daba_bal_solver.h"
 int main(int argc, char**argv) {
     if(argc < 2) {
 	    std::fprintf(stderr, "Usage: %s /path/to/data_set\n", argv[0]);
@@ -20,7 +20,8 @@ int main(int argc, char**argv) {
     std::cout << "Observation : " << problem.observations_.size() << std::endl;
     
     auto start = std::chrono::high_resolution_clock::now();
-    CeresProblemSolver solver;
+    //CeresProblemSolver solver;
+    DABAProblemSolver solver;
     solver.Solve(problem);
     auto end = std::chrono::high_resolution_clock::now();
     std::cout << "Problem MSE : " << problem.MSE() << std::endl;
