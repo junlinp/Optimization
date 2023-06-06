@@ -3,91 +3,20 @@
 #include "ceres/rotation.h"
 #include "ceres/solver.h"
 
-template<class T>
-Eigen::Matrix<T, 3, 1> UndistortionRay(const T* focal_and_distortion, T u, T v) {
-  const T &focal = focal_and_distortion[0];
-  const T &k1 = focal_and_distortion[1];
-  const T &k2 = focal_and_distortion[2];
-  T l2_norm_uv = u * u + v * v;
-  return Eigen::Matrix<T, 3, 1> (u / focal, v / focal,
-                             T(1.0) + k1 * l2_norm_uv +
-                                 k2 * l2_norm_uv * l2_norm_uv);
-}
-
-template<class T>
-T MinimumDepth(const T* camera_parameters, const T* landmark_position, T u, T v) {
-  using Tvector3d = Eigen::Matrix<T, 3, 1>;
-  Tvector3d pij = UndistortionRay(camera_parameters + 6, u, v);
-  Eigen::Map<const Tvector3d> ti(camera_parameters +  3);
-  Eigen::Map<const Tvector3d> pj(landmark_position);
-  T rotation_output[3];
-  ceres::AngleAxisRotatePoint(camera_parameters, pij.data(), rotation_output);
-  Eigen::Map<Tvector3d> rotation_output_map(rotation_output);
-  return (pj - ti).dot(rotation_output_map) / (pj - ti).dot(pj - ti);
-}
-
-template <class T>
-void IntermediateTerm(const T *camera_parameters, const T *position,
-                      T *residual, const T &u, const T &v) {
-  using Tvector3d = Eigen::Matrix<T, 3, 1>;
-  Tvector3d pij = UndistortionRay(camera_parameters + 6, u, v);
-
-  Eigen::Map<const Tvector3d> ti(camera_parameters + 3);
-  Eigen::Map<const Tvector3d> pj(position);
-  ceres::AngleAxisRotatePoint(camera_parameters, pij.data(), residual);
-  Eigen::Map< Tvector3d> residual_map(residual);
-  T lambda = (pj - ti).dot(residual_map) / (pj - ti).dot(pj - ti);
-  residual_map += lambda * (ti + pj);
-}
-
-struct CameraSurrogateCostFunction {
-  double u_, v_;
-  CameraSurrogateCostFunction(double u, double v) : u_(u), v_(v) {}
-
-  template <class T>
-  bool operator()(const T *camera_parameters,
-                  const T *condition_camera_parameters,
-                  const T *condition_landmark_parameters, T *residual) const {
-    using Tvector3d = Eigen::Matrix<T, 3, 1>;
-    Tvector3d pij = UndistortionRay<T>(camera_parameters + 6, T(u_), T(v_));
-    ceres::AngleAxisRotatePoint(camera_parameters, pij.data(), residual);
-
-    Eigen::Map<const Tvector3d> ti(camera_parameters + 3);
-    T lambda_k = MinimumDepth(condition_camera_parameters,
-                              condition_landmark_parameters, T(u_), T(v_));
-    Tvector3d gij_k;
-    IntermediateTerm(condition_camera_parameters, condition_landmark_parameters, gij_k.data(), T(u_), T(v_));
-    Eigen::Map<Tvector3d> residual_map(residual);
-    residual_map += lambda_k * ti - gij_k;
-    return true;
-  }
-};
-
-struct LandmarkSurrogatecostFunction {
-    double u_, v_;
-    LandmarkSurrogatecostFunction(double u, double v) : u_(u), v_(v) {}
-
-    template <class T>
-  bool operator()(const T *landmark_position,
-                  const T *condition_camera_parameters,
-                  const T *condition_landmark_parameters, T *residual) const {
-    using Tvector3d = Eigen::Matrix<T, 3, 1>;
-    Eigen::Map<const Tvector3d> pj(landmark_position);
-    T lambda_k = MinimumDepth(condition_camera_parameters,
-                              condition_landmark_parameters, T(u_), T(v_));
-    Tvector3d gij_k;
-    IntermediateTerm(condition_camera_parameters, condition_landmark_parameters, gij_k.data(), T(u_), T(v_));
-    Eigen::Map<Tvector3d> residual_map(residual);
-    residual_map = lambda_k * pj - gij_k;
-    return true;
-  }
-};
+#include "cost_function_auto.h"
+#include <thread>
 
 void DABAProblemSolver::Solve(Problem &problem) {
+  ceres::Problem global_problem;
+
   for (auto &&[index, camera_parameter] : problem.cameras_) {
+    std::array<double, 9> temp_parameter;
     std::copy(camera_parameter.data(), camera_parameter.data() + 9,
+    temp_parameter.begin());
+
+    std::copy(temp_parameter.data(), temp_parameter.data() + 9,
               camera_parameters_[index].begin());
-    std::copy(camera_parameter.data(), camera_parameter.data() + 9,
+    std::copy(temp_parameter.data(), temp_parameter.data() + 9,
               last_camera_parameters_[index].begin());
   }
 
@@ -144,25 +73,54 @@ void DABAProblemSolver::Solve(Problem &problem) {
         landmark_position_[landmark_index].data(),
         last_camera_parameters_[camera_index].data(),
         last_landmark_position_[camera_index].data());
-  }
-  
-  for (auto& [_, problem] :camera_problems) {
-    ceres::Solver::Options options;
-    ceres::Solver::Summary summary;
-    ceres::Solve(options, &problem, &summary);
-    std::cout << summary.BriefReport() << std::endl;
-  }
 
-  for (auto& [_, problem] : landmark_problems) {
-    ceres::Solver::Options options;
-    ceres::Solver::Summary summary;
-    ceres::Solve(options, &problem, &summary);
-    std::cout << summary.FullReport() << std::endl;
+    ceres::CostFunction *ray_cost_function =
+        new ceres::AutoDiffCostFunction<RayCostFunction, 3, 9, 3>(
+            new RayCostFunction(uv.u(), uv.v()));
+    global_problem.AddResidualBlock(ray_cost_function, nullptr, problem.cameras_[camera_index].data(), problem.points_[landmark_index].data());
+  }
+  size_t epoch = 0; 
+  while(epoch++ < 256) {
+    std::vector<std::thread> thread_pool;
+    for (const auto&[index, parameters] : camera_parameters_) {
+        auto& condition_parameters = last_camera_parameters_[index];
+        std::copy(parameters.begin(), parameters.end(), condition_parameters.begin());
+    }
+    for (const auto& [index, parameters] : landmark_position_) {
+        auto & condition_parameters = last_landmark_position_[index];
+        std::copy(parameters.begin(), parameters.end(), condition_parameters.begin());
+    }
+
+    auto functor = [&camera_problems]() {
+    for (auto &[_, problem] : camera_problems) {
+        ceres::Solver::Options options;
+        ceres::Solver::Summary summary;
+        ceres::Solve(options, &problem, &summary);
+      }
+    };
+    thread_pool.push_back((std::thread(functor)));
+    auto functor2 = [&landmark_problems]() {
+      for (auto &[_, problem] : landmark_problems) {
+        ceres::Solver::Options options;
+        ceres::Solver::Summary summary;
+        ceres::Solve(options, &problem, &summary);
+      }
+    };
+    thread_pool.push_back(std::thread(functor2));
+
+    for (std::thread& thread : thread_pool) {
+      thread.join(); 
+    }
   }
 
   for (auto &[index, camera_parameter] : problem.cameras_) {
+    std::array<double, 9> temp_parameter;
+
     std::copy(camera_parameters_[index].begin(),
-              camera_parameters_[index].end(), camera_parameter.data());
+              camera_parameters_[index].end(), temp_parameter.begin());
+
+    std::copy(temp_parameter.begin(), temp_parameter.end(),
+              camera_parameter.data());
   }
 
   for (auto &[index, landmark] : problem.points_) {
@@ -170,4 +128,9 @@ void DABAProblemSolver::Solve(Problem &problem) {
               landmark_position_[index].end(), landmark.data());
   }
 
+  // ceres::Solver::Options options;
+  // options.max_num_iterations = 512;
+  // ceres::Solver::Summary summary;
+  // ceres::Solve(options, &global_problem, &summary);
+  // std::cout << summary.FullReport() << std::endl;
 }

@@ -16,7 +16,7 @@ Problem LoadProblem(const std::string& path) {
         size_t camera_id, point_id;
         double x, y;
         ifs >> camera_id >> point_id >> x >> y;
-        problem.observations_[IndexPair(camera_id, point_id)] = Observation(x, y);
+        problem.observations_[IndexPair(camera_id, point_id)] = Observation(-x, -y);
     }
 
     for (size_t i = 0; i < num_cameras; i++) {

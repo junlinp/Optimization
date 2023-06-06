@@ -20,12 +20,12 @@ int main(int argc, char**argv) {
     std::cout << "Observation : " << problem.observations_.size() << std::endl;
     
     auto start = std::chrono::high_resolution_clock::now();
-    //CeresProblemSolver solver;
+    // CeresProblemSolver solver;
     DABAProblemSolver solver;
     solver.Solve(problem);
     auto end = std::chrono::high_resolution_clock::now();
     std::cout << "Problem MSE : " << problem.MSE() << std::endl;
     std::cout << (end - start).count() / 1000.0 / 1000 / 1000 << " seconds." << std::endl;
-
+    problem.ToPly("point_cloud.ply");
     return 0;
 }

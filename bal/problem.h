@@ -2,7 +2,9 @@
 #define BAL_PROBLEM_H_
 #include <Eigen/Dense>
 #include <iostream>
+#include <fstream>
 #include <map>
+#include <string>
 #include <unordered_map>
 #include <vector>
 #include "ceres/cost_function.h"
@@ -10,17 +12,8 @@
 
 typedef std::pair<size_t, size_t> IndexPair;
 
-namespace std {
-template <> struct hash<IndexPair> {
-  bool operator()(IndexPair const &rhs) const noexcept {
-    std::size_t h1 = std::hash<size_t>{}(rhs.first);
-    std::size_t h2 = std::hash<size_t>{}(rhs.second);
-    return h1 & (h2 << 1);
-  }
-};
-} // namespace std
 struct CameraParam {
-  // R, t, f, k1, k2
+  // R_world_camera, t_world_camera, f, k1, k2
   double params[9];
 
   double *data() { return params; }
@@ -83,20 +76,50 @@ struct Problem {
 
   double MSE() const {
     double error = 0.0;
+    double ray_error = 0.0;
     for (auto &&[pairs, observation] : observations_) {
       const CameraParam &camera_parameter = cameras_.at(pairs.first);
-      const double *camera_intrinsics = camera_parameter.data() + 6;
       const Landmark &points = points_.at(pairs.second);
       ceres::CostFunction *cost_func = ProjectFunction::CreateCostFunction(
-          camera_intrinsics[0], camera_intrinsics[1], camera_intrinsics[2],
           observation.u(), observation.v());
       std::vector<const double*> parameters = {camera_parameter.data(), points.data()};
       double res[2];
       cost_func->Evaluate(parameters.data(), res, nullptr);
-
+      RayCostFunction ray_cost_func(observation.u(), observation.v());
+      double ray_res[3];
+      ray_cost_func(camera_parameter.data(), points.data(), ray_res);
       error += res[0] * res[0] + res[1] * res[1];
+      ray_error += ray_res[0] * ray_res[0] + ray_res[1] + ray_res[1] +ray_res[2] * ray_res[2];
+      Eigen::Vector2d res_map(res[0], res[1]);
+      Eigen::Vector3d ray_res_map(ray_res[0], ray_res[1], ray_res[2]);
+
+      //std::cout << "Project : norm : " << res_map.norm() << std::endl;
+      //std::cout << "Res norm : " << ray_res_map.norm() << std::endl;
     }
-    return std::sqrt(error / observations_.size());
+    // return std::sqrt(error / observations_.size());
+    return std::sqrt(ray_error / observations_.size());
+  }
+
+  bool ToPly(const std::string& ply_filename) {
+    std::ofstream ofs(ply_filename);
+    if (!ofs.is_open()) {
+      return false;
+    }
+    
+    ofs << "ply" << std::endl;
+    ofs << "format ascii 1.0" << std::endl;
+    ofs << "element vertex " << std::to_string(points_.size()) << std::endl;
+    ofs << "property float x" << std::endl;
+    ofs << "property float y" << std::endl;
+    ofs << "property float z" << std::endl;
+    ofs << "end_header" << std::endl;
+    for (auto point : points_) {
+      ofs << std::to_string(point.second.data_[0]) << " "
+      << std::to_string(point.second.data_[1]) << " "
+      << std::to_string(point.second.data_[2]) << std::endl;
+    }
+    ofs.close();
+    return true;
   }
 };
 
