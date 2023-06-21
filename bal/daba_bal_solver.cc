@@ -5,8 +5,60 @@
 
 #include "cost_function_auto.h"
 #include <thread>
+#include <map>
+
+#include "Graph/graph_normal_cut.h"
+void GraphCut(const Problem &problem,
+              std::map<int64_t, int64_t> *cluster_of_camera_index,
+              std::map<int64_t, int64_t> *cluster_of_landmark_index) {
+  int64_t global_index = 0;
+  std::map<int64_t, int64_t> camera_index_to_global_index;
+  std::map<int64_t, int64_t> landmark_index_to_global_index;
+  for (auto [index_pair, uv] : problem.observations_) {
+    int64_t camera_index = index_pair.first;
+    int64_t landmark_index = index_pair.second;
+    camera_index_to_global_index[camera_index] = global_index++;
+    landmark_index_to_global_index[landmark_index] = global_index++;
+  }
+
+  Graph local_graph(global_index);
+  for (auto [index_pair, uv] : problem.observations_) {
+    int64_t camera_index = index_pair.first;
+    int64_t landmark_index = index_pair.second;
+    local_graph.SetEdgeValue(camera_index_to_global_index[camera_index],
+                             landmark_index_to_global_index[landmark_index],
+                             1.0);
+  }
+
+  GraphNormalCut cut_solver;
+  std::map<int64_t, int64_t> global_index_to_cluster_id;
+  auto&& [a, b] = cut_solver.Cut(local_graph); 
+
+  for (auto index : a) {
+    global_index_to_cluster_id[index] = 0;
+  }
+
+  for (auto index : b) {
+    global_index_to_cluster_id[index] = 1;
+  }
+
+  for (auto [index_pair, uv] : problem.observations_) {
+    int64_t camera_index = index_pair.first;
+    int64_t landmark_index = index_pair.second;
+
+    int64_t camera_global_index = camera_index_to_global_index[camera_index];
+    int64_t landmark_global_index = landmark_index_to_global_index[landmark_index];
+    (*cluster_of_camera_index)[camera_index] = global_index_to_cluster_id[camera_global_index];
+    (*cluster_of_landmark_index)[landmark_index] = global_index_to_cluster_id[landmark_global_index];
+  }
+
+}
 
 void DABAProblemSolver::Solve(Problem &problem) {
+  std::map<int64_t, int64_t> cluster_of_camera_index;
+  std::map<int64_t, int64_t> cluster_of_landmark_index;
+  GraphCut(problem, &cluster_of_camera_index, &cluster_of_landmark_index);
+
   ceres::Problem global_problem;
 
   for (auto &&[index, camera_parameter] : problem.cameras_) {
@@ -80,7 +132,7 @@ void DABAProblemSolver::Solve(Problem &problem) {
     global_problem.AddResidualBlock(ray_cost_function, nullptr, problem.cameras_[camera_index].data(), problem.points_[landmark_index].data());
   }
   size_t epoch = 0; 
-  while(epoch++ < 256) {
+  while(epoch++ < 1024) {
     std::vector<std::thread> thread_pool;
     for (const auto&[index, parameters] : camera_parameters_) {
         auto& condition_parameters = last_camera_parameters_[index];
@@ -107,10 +159,10 @@ void DABAProblemSolver::Solve(Problem &problem) {
       }
     };
     thread_pool.push_back(std::thread(functor2));
-
     for (std::thread& thread : thread_pool) {
       thread.join(); 
     }
+
   }
 
   for (auto &[index, camera_parameter] : problem.cameras_) {

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.0)
 
 project(bal)
-set(CXX_STANDARD 17)
+set(CXX_STANDARD 20)
 find_package(Eigen3 REQUIRED)
 find_package(Ceres REQUIRED)
 
