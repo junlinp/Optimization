@@ -1,6 +1,7 @@
 #include "graph_normal_cut.h"
 
 #include <iostream>
+#include <limits>
 
 std::pair<GraphNormalCut::AIndex, GraphNormalCut::BIndex>
 GraphNormalCut::Cut(const Graph &graph) const {
@@ -71,26 +72,29 @@ Eigen::VectorXf RayleighQuotient(
     Eigen::VectorXf eigenvector_with_smallest_eigenvalue) {
       size_t n = H.rows();
       assert(H.rows() == H.cols());
-      size_t max_iter = 128;
+      size_t max_iter = 4096;
       size_t iter = 0;
       Eigen::VectorXf x = Eigen::VectorXf::Random(n);
       x = x - x.dot(eigenvector_with_smallest_eigenvalue) * eigenvector_with_smallest_eigenvalue;
+      std::cout << "Initial H * x : " << (H*x).norm() << std::endl;
       // minimum f(x)  = 0.5 * x' * H * x
-      while(iter < max_iter) {
+      while(iter++ < max_iter) {
         Eigen::VectorXf grad_x = H * x;
 
         // Project gradient to tangent space
         Eigen::VectorXf riemann_grad_x = RiemannProject(x, grad_x, eigenvector_with_smallest_eigenvalue);
 
         // stopping criterion
-        if (riemann_grad_x.norm() < 1e-5) {
+        if (riemann_grad_x.norm() < 1e-5 * n) {
           break;
         }
-
+        std::cout << "search step" << std::endl;
         // linear search for step-size
         float step = BackTrackingSearch(H, x, riemann_grad_x, 1.0);
         x = RiemannRetraction(x, Eigen::VectorXf(-step * riemann_grad_x));
+        std::cout << iter << " iteration" << std::endl;
       }
+      std::cout << "H * x : " << (H*x).norm() << std::endl;
       return x;
     }
 
@@ -111,14 +115,16 @@ GraphNormalCut::SparseCut(const Graph& graph) const {
   }
   std::cout << "Construction d" << std::endl;
   Eigen::VectorXf d_sqrt_invert(n);
-  for(int i = 0; i < n; i++) {
+  Eigen::VectorXf d_sqrt(n);
+  for(size_t i = 0; i < n; i++) {
     d_sqrt_invert(i) = 1.0 / std::sqrt(d(i));
+    d_sqrt(i) = std::sqrt(d(i));
   }
    //= d.array().sqrt().inverse();
 
   std::cout << "Construction finish" << std::endl;
   Eigen::SparseMatrix<float> D_minus_W = -W;
-  for (int i= 0; i < n; i++) {
+  for (size_t i= 0; i < n; i++) {
     D_minus_W.insert(i, i) = d(i);
   }
   std::cout << "D_minus_W" << std::endl;
@@ -130,13 +136,15 @@ GraphNormalCut::SparseCut(const Graph& graph) const {
 
   for (int k = 0; k < A.outerSize(); k++) {
     for (Eigen::SparseMatrix<float>::InnerIterator it(A, k); it; ++it) {
-      it.valueRef() *= d_sqrt_invert(it.row()) * d_sqrt_invert(it.col());
+      float v = it.value() * d_sqrt_invert(it.row()) * d_sqrt_invert(it.col());
+      assert(!isnan(v));
+      it.valueRef() = v;
     }
   }
   std::cout << "A" << std::endl;
 
 
-  Eigen::VectorXf eigen_vector_with_small_eigenvalue = d_sqrt_invert;
+  Eigen::VectorXf eigen_vector_with_small_eigenvalue = d_sqrt;
   // Fiedler vector
   // Rayleigh quotient
   Eigen::VectorXf solution = RayleighQuotient(A, eigen_vector_with_small_eigenvalue);
@@ -153,5 +161,6 @@ GraphNormalCut::SparseCut(const Graph& graph) const {
       b_set.push_back(i);
     }
   }
+  std::cout << a_set.size() << " : " << b_set.size() << std::endl;
   return {a_set, b_set};
 }
