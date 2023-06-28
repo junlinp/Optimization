@@ -32,7 +32,7 @@ void GraphCut(const Problem &problem,
 
   GraphNormalCut cut_solver;
   std::map<int64_t, int64_t> global_index_to_cluster_id;
-  auto&& [a, b] = cut_solver.Cut(local_graph); 
+  auto&& [a, b] = cut_solver.SparseCut(local_graph); 
 
   for (auto index : a) {
     global_index_to_cluster_id[index] = 0;
