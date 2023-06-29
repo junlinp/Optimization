@@ -60,9 +60,13 @@ float BackTrackingSearch(const MatrixT& H,
   auto F = [&H](const VectorT& x) -> double {
     return 0.5 * x.dot(H * x);
   };
-
-  while(F(x) - F(RiemannRetraction(x, VectorT(-alpha * grad))) <  gramma* alpha * grad.squaredNorm()) {
+  int iter = 0;
+  int max_iter = 1024;
+  while(F(x) - F(RiemannRetraction(x, VectorT(-alpha * grad))) <  gramma* alpha * grad.squaredNorm() && iter++ < max_iter) {
     alpha *= tau;
+  }
+  if (iter == max_iter) {
+    std::cout << "BackTrackingSearch reach the max iter" << std::endl;
   }
   return alpha;
 }
@@ -72,7 +76,7 @@ Eigen::VectorXf RayleighQuotient(
     Eigen::VectorXf eigenvector_with_smallest_eigenvalue) {
       size_t n = H.rows();
       assert(H.rows() == H.cols());
-      size_t max_iter = 4096;
+      size_t max_iter = 128;
       size_t iter = 0;
       Eigen::VectorXf x = Eigen::VectorXf::Random(n);
       x = x - x.dot(eigenvector_with_smallest_eigenvalue) * eigenvector_with_smallest_eigenvalue;
@@ -104,6 +108,7 @@ GraphNormalCut::SparseCut(const Graph& graph) const {
   std::cout << "Construction W finish" << std::endl;
   size_t n = W.rows();
   Eigen::VectorXf d(n);
+  d.setZero();
   for (int k = 0; k < W.outerSize(); ++k) {
     for (Eigen::SparseMatrix<float>::InnerIterator it(W, k); it; ++it) {
       it.value();
@@ -117,6 +122,7 @@ GraphNormalCut::SparseCut(const Graph& graph) const {
   Eigen::VectorXf d_sqrt_invert(n);
   Eigen::VectorXf d_sqrt(n);
   for(size_t i = 0; i < n; i++) {
+    assert(d(i) > 0);
     d_sqrt_invert(i) = 1.0 / std::sqrt(d(i));
     d_sqrt(i) = std::sqrt(d(i));
   }
@@ -136,7 +142,9 @@ GraphNormalCut::SparseCut(const Graph& graph) const {
 
   for (int k = 0; k < A.outerSize(); k++) {
     for (Eigen::SparseMatrix<float>::InnerIterator it(A, k); it; ++it) {
-      float v = it.value() * d_sqrt_invert(it.row()) * d_sqrt_invert(it.col());
+      float v = it.value();
+      assert(!isnan(v));
+      v = v * d_sqrt_invert(it.row()) * d_sqrt_invert(it.col());
       assert(!isnan(v));
       it.valueRef() = v;
     }

@@ -32,7 +32,7 @@ Eigen::MatrixXd Graph::GetWeightMatrix() const {
 
 Eigen::SparseMatrix<float> Graph::GetSparseWeightMatrix() const {
     Eigen::SparseMatrix<float> res(node_size_, node_size_);
-    typedef Eigen::Triplet<double> T;
+    typedef Eigen::Triplet<float> T;
     std::vector<T> tripletList;
     tripletList.reserve(weight_.size());
     for (auto&& [index_piar, weight] : weight_) {
