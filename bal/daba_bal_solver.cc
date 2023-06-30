@@ -169,6 +169,7 @@ void DABAProblemSolver::Solve(Problem &problem) {
     for (auto& problem : cluster_problems) {
       auto functor = [&problem, indicator]() {
         ceres::Solver::Options options;
+        options.max_num_iterations = 500;
         ceres::Solver::Summary summary;
         ceres::Solve(options, &problem, &summary);
         std::cout << "Indicator : " << indicator << " Summary: " << summary.BriefReport() << std::endl;
