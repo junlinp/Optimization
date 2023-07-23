@@ -33,15 +33,15 @@ TEST(Surrogate_Function, simple_case) {
   //double uv[2] = {-332.65, 262.09};
   double uv[2] = {332.65, -262.09};
 
-  CameraSurrogateCostFunction camera_surrogate_cost_function(uv[0], uv[1]);
-  LandmarkSurrogatecostFunction landmark_surrogate_cost_function(uv[0], uv[1]);
+  CameraSurrogateCostFunction camera_surrogate_cost_function(camera, point,uv[0], uv[1]);
+  LandmarkSurrogatecostFunction landmark_surrogate_cost_function(camera, point, uv[0], uv[1]);
   RayCostFunction ray_cost_function(uv[0], uv[1]);
 
   double camera_residual[3];
   double landmark_residual[3];
   double ray_residual[3];
-  camera_surrogate_cost_function(camera, camera, point, camera_residual);
-  landmark_surrogate_cost_function(point, camera, point, landmark_residual);
+  camera_surrogate_cost_function(camera,  camera_residual);
+  landmark_surrogate_cost_function(point, landmark_residual);
   ray_cost_function(camera, point, ray_residual);
 
   std::cout << camera_residual[0] << ", " << camera_residual[1] << ", " << camera_residual[2] << std::endl;
@@ -49,8 +49,13 @@ TEST(Surrogate_Function, simple_case) {
             << std::endl;
   std::cout << ray_residual[0] << ", " << ray_residual[1] << ", "
             << ray_residual[2] << std::endl;
-  //EXPECT_NEAR(residual[0] * residual[0], 9.01928 * 9.01928, 1e-3);
-  //EXPECT_NEAR(residual[1] * residual[1], 11.26312 * 11.26312, 1e-3);
+  
+  Eigen::Vector3d camera_residual_vector(camera_residual);
+  Eigen::Vector3d landmark_residual_vector(landmark_residual);
+  Eigen::Vector3d ray_residual_vector(ray_residual);
+
+  EXPECT_LE(ray_residual_vector.squaredNorm(), camera_residual_vector.squaredNorm() + landmark_residual_vector.squaredNorm());
+  EXPECT_NEAR(ray_residual_vector.squaredNorm(), camera_residual_vector.squaredNorm() + landmark_residual_vector.squaredNorm(), 1e-6);
 }
 
 // TEST(PLUS, JETD) {

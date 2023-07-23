@@ -124,23 +124,22 @@ void DABAProblemSolver::Solve(Problem &problem) {
       auto &landmark_problem = cluster_problems[landmark_cluster_id];
 
       ceres::CostFunction *camera_cost_function =
-          new ceres::AutoDiffCostFunction<CameraSurrogateCostFunction, 3, 9, 9,
-                                          3>(
-              new CameraSurrogateCostFunction(uv.u(), uv.v()));
-      camera_problem.AddResidualBlock(
-          camera_cost_function, nullptr,
-          camera_parameters_[camera_index].data(),
-          last_camera_parameters_[camera_index].data(),
-          last_landmark_position_[landmark_index].data());
+          new ceres::AutoDiffCostFunction<CameraSurrogateCostFunction, 3, 9>(
+              new CameraSurrogateCostFunction(
+                  last_camera_parameters_[camera_index].data(),
+                  last_landmark_position_[landmark_index].data(), uv.u(),
+                  uv.v()));
+      camera_problem.AddResidualBlock(camera_cost_function, nullptr,
+                                      camera_parameters_[camera_index].data());
       ceres::CostFunction *landmark_cost_function =
-          new ceres::AutoDiffCostFunction<LandmarkSurrogatecostFunction, 3, 3,
-                                          9, 3>(
-              new LandmarkSurrogatecostFunction(uv.u(), uv.v()));
+          new ceres::AutoDiffCostFunction<LandmarkSurrogatecostFunction, 3, 3>(
+              new LandmarkSurrogatecostFunction(
+                  last_camera_parameters_[camera_index].data(),
+                  last_landmark_position_[landmark_index].data(), uv.u(),
+                  uv.v()));
       landmark_problem.AddResidualBlock(
           landmark_cost_function, nullptr,
-          landmark_position_[landmark_index].data(),
-          last_camera_parameters_[camera_index].data(),
-          last_landmark_position_[camera_index].data());
+          landmark_position_[landmark_index].data());
     }
     ceres::CostFunction *ray_cost_function =
         new ceres::AutoDiffCostFunction<RayCostFunction, 3, 9, 3>(
