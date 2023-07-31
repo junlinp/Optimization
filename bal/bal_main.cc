@@ -20,8 +20,8 @@ int main(int argc, char**argv) {
     std::cout << "Observation : " << problem.observations_.size() << std::endl;
     
     auto start = std::chrono::high_resolution_clock::now();
-    CeresProblemSolver solver;
-    //DABAProblemSolver solver;
+    // CeresProblemSolver solver;
+    DABAProblemSolver solver;
     solver.Solve(problem);
     auto end = std::chrono::high_resolution_clock::now();
     std::cout << "Problem MSE : " << problem.MSE() << std::endl;

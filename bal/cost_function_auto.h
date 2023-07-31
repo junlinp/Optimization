@@ -185,4 +185,24 @@ struct RayCostFunction {
     return true;
   }
 };
+
+template<int DIM>
+struct WeightVectorDiff {
+  private:
+  double* condition_parameters_;
+  double weight_;
+  public:
+    WeightVectorDiff(double *condition_parameters, double weight)
+        : condition_parameters_(condition_parameters), weight_(weight) {}
+
+  template<class T>
+  bool operator()(const T* parameter, T* residual) const {
+     for(int i = 0; i < DIM; i++) {
+       residual[i] =
+           T(std::sqrt((weight_))) * (parameter[i] - T(condition_parameters_[i]));
+     }
+     return true;
+  };
+
+};
 #endif // BAL_COST_FUNCTION_AUTO_H_

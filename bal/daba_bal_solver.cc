@@ -4,6 +4,7 @@
 #include "ceres/solver.h"
 
 #include "cost_function_auto.h"
+#include <limits>
 #include <map>
 #include <thread>
 
@@ -22,7 +23,7 @@ void GraphCut(const Problem &problem,
   }
 
   for (auto [index_pair, uv] : problem.observations_) {
-    int64_t camera_index = index_pair.first;
+    // int64_t camera_index = index_pair.first;
     int64_t landmark_index = index_pair.second;
     if (landmark_index_to_global_index.find(landmark_index) == landmark_index_to_global_index.end()) {
       landmark_index_to_global_index[landmark_index] = global_index++;
@@ -65,15 +66,69 @@ void GraphCut(const Problem &problem,
   }
 }
 
+void RandomGraphCut(const Problem &problem, int parition,
+                    std::map<int64_t, int64_t> *cluster_of_camera_index,
+                    std::map<int64_t, int64_t> *cluster_of_landmark_index) {
+  int64_t global_index = 0;
+  std::map<int64_t, int64_t> camera_index_to_global_index;
+  std::map<int64_t, int64_t> landmark_index_to_global_index;
+  for (auto [index_pair, uv] : problem.observations_) {
+    int64_t camera_index = index_pair.first;
+    if (camera_index_to_global_index.find(camera_index) == camera_index_to_global_index.end()) {
+      camera_index_to_global_index[camera_index] = global_index++;
+    }
+    int64_t landmark_index = index_pair.second;
+    if (landmark_index_to_global_index.find(landmark_index) == landmark_index_to_global_index.end()) {
+      landmark_index_to_global_index[landmark_index] = global_index++;
+    }
+  }
+
+  std::map<int64_t, int64_t> global_index_to_cluster_id;
+
+  for (int i = 0; i < global_index; i++) {
+    global_index_to_cluster_id[i] = i % parition;
+  }
+
+  for (auto [index_pair, uv] : problem.observations_) {
+    int64_t camera_index = index_pair.first;
+    int64_t landmark_index = index_pair.second;
+
+    int64_t camera_global_index = camera_index_to_global_index[camera_index];
+    int64_t landmark_global_index =
+        landmark_index_to_global_index[landmark_index];
+    (*cluster_of_camera_index)[camera_index] =
+        global_index_to_cluster_id[camera_global_index];
+    (*cluster_of_landmark_index)[landmark_index] =
+        global_index_to_cluster_id[landmark_global_index];
+  }
+}
+template<class T>
+void NesterovStep(const T& last_parameters, const T& current_parameters, double grama, T* next_step) {
+  assert(last_parameters.size() == current_parameters.size());
+  size_t n = last_parameters.size();
+  for (size_t i = 0; i < n; i++) {
+    (*next_step)[i] = current_parameters[i] + grama * (current_parameters[i] - last_parameters[i]);
+  }
+}
+
+double s(int k) {
+  static std::map<int, double> cache;
+  if (k == 0) {
+    cache[0] = 1.0;
+  }
+  if (cache.find(k) == cache.end()) {
+     cache[k] = 0.5 * (std::sqrt(4.0 * s(k - 1) * s(k - 1) + 1) + 1);
+  } 
+  return cache[k];
+}
+
 void DABAProblemSolver::Solve(Problem &problem) {
   std::map<int64_t, int64_t> cluster_of_camera_index;
   std::map<int64_t, int64_t> cluster_of_landmark_index;
-  GraphCut(problem, &cluster_of_camera_index, &cluster_of_landmark_index);
+  constexpr int partition = 8;
+  RandomGraphCut(problem, partition, &cluster_of_camera_index, &cluster_of_landmark_index);
 
-  ceres::Problem global_problem;
-  // std::map<int64_t, ceres::Problem> camera_problems;
-  // std::map<int64_t, ceres::Problem> landmark_problems;
-  std::vector<ceres::Problem> cluster_problems(2);
+  std::vector<ceres::Problem> cluster_problems(partition);
 
   for (auto &&[index, camera_parameter] : problem.cameras_) {
     std::array<double, 9> temp_parameter;
@@ -88,8 +143,6 @@ void DABAProblemSolver::Solve(Problem &problem) {
     int64_t cluster_index = cluster_of_camera_index[index];
     ceres::Problem &problem = cluster_problems[cluster_index];
     problem.AddParameterBlock(camera_parameters_[index].data(), 9);
-    problem.AddParameterBlock(last_camera_parameters_[index].data(), 9);
-    problem.SetParameterBlockConstant(last_camera_parameters_[index].data());
   }
 
   for (auto &&[index, landmark] : problem.points_) {
@@ -101,10 +154,9 @@ void DABAProblemSolver::Solve(Problem &problem) {
     int64_t cluster_index = cluster_of_landmark_index[index];
     ceres::Problem &problem = cluster_problems[cluster_index];
     problem.AddParameterBlock(landmark_position_[index].data(), 3);
-    problem.AddParameterBlock(last_landmark_position_[index].data(), 3);
-    problem.SetParameterBlockConstant(last_landmark_position_[index].data());
   }
-
+  std::set<int64_t> camera_visited;
+  std::set<int64_t> landmark_visited;
   for (auto [index_pair, uv] : problem.observations_) {
     int64_t camera_index = index_pair.first;
     int64_t landmark_index = index_pair.second;
@@ -119,10 +171,8 @@ void DABAProblemSolver::Solve(Problem &problem) {
           ray_cost_function, nullptr, camera_parameters_[camera_index].data(),
           landmark_position_[landmark_index].data());
     } else {
-
       auto &camera_problem = cluster_problems[camera_cluster_id];
       auto &landmark_problem = cluster_problems[landmark_cluster_id];
-
       ceres::CostFunction *camera_cost_function =
           new ceres::AutoDiffCostFunction<CameraSurrogateCostFunction, 3, 9>(
               new CameraSurrogateCostFunction(
@@ -141,37 +191,70 @@ void DABAProblemSolver::Solve(Problem &problem) {
           landmark_cost_function, nullptr,
           landmark_position_[landmark_index].data());
     }
-    ceres::CostFunction *ray_cost_function =
-        new ceres::AutoDiffCostFunction<RayCostFunction, 3, 9, 3>(
-            new RayCostFunction(uv.u(), uv.v()));
-    global_problem.AddResidualBlock(ray_cost_function, nullptr,
-                                    problem.cameras_[camera_index].data(),
-                                    problem.points_[landmark_index].data());
+
+    if (camera_visited.find(camera_index) == camera_visited.end()) {
+      camera_visited.insert(camera_index);
+
+      ceres::Problem& problem = cluster_problems[camera_cluster_id];
+      auto *costfunction_ptr =
+          new ceres::AutoDiffCostFunction<WeightVectorDiff<9>, 9, 9>(
+              new WeightVectorDiff<9>(
+                  last_camera_parameters_[camera_index].data(), 0.1));
+      problem.AddResidualBlock(costfunction_ptr, nullptr,
+                               camera_parameters_[camera_index].data());
+    }
+
+    if (landmark_visited.find(landmark_index) == landmark_visited.end()) {
+      landmark_visited.insert(landmark_index);
+      ceres::Problem& problem = cluster_problems[landmark_cluster_id];
+      auto *costfunction_ptr =
+          new ceres::AutoDiffCostFunction<WeightVectorDiff<3>, 3, 3>(
+              new WeightVectorDiff<3>(
+                  last_landmark_position_[landmark_index].data(), 0.1));
+                  problem.AddResidualBlock(costfunction_ptr, nullptr, landmark_position_[landmark_index].data());
+    }
   }
+
   for (auto& problem : cluster_problems) {
     std::cout << problem.NumResiduals() << std::endl;
   }
   size_t epoch = 0;
-  while (epoch++ < 128) {
+  std::map<int64_t, std::array<double, 9>> last_camera_parameters = camera_parameters_;
+  std::map<int64_t, std::array<double, 3>> last_landmark_position = landmark_position_;
+  int grama_index = 0;
+  double last_error = std::numeric_limits<double>::max();
+  while (epoch++ < 1024) {
     std::vector<std::thread> thread_pool;
+    double grama = (s(grama_index) -1) / s(grama_index+ 1);
     for (const auto &[index, parameters] : camera_parameters_) {
       auto &condition_parameters = last_camera_parameters_[index];
+
+      NesterovStep(last_camera_parameters[index], parameters, grama, &condition_parameters);
       std::copy(parameters.begin(), parameters.end(),
-                condition_parameters.begin());
+                last_camera_parameters[index].begin());
     }
+
     for (const auto &[index, parameters] : landmark_position_) {
       auto &condition_parameters = last_landmark_position_[index];
+      NesterovStep(last_landmark_position[index], parameters, grama, &condition_parameters);
       std::copy(parameters.begin(), parameters.end(),
-                condition_parameters.begin());
+                last_landmark_position[index].begin());
     }
+
     int indicator = 0;
+    double current_error = 0.0;
+    std::mutex current_error_mutex;
     for (auto& problem : cluster_problems) {
-      auto functor = [&problem, indicator]() {
+      auto functor = [&problem, indicator, &current_error_mutex, &current_error]() {
         ceres::Solver::Options options;
         options.max_num_iterations = 500;
         ceres::Solver::Summary summary;
         ceres::Solve(options, &problem, &summary);
         std::cout << "Indicator : " << indicator << " Summary: " << summary.BriefReport() << std::endl;
+        {
+          std::lock_guard<std::mutex> lk_(current_error_mutex);
+          current_error += summary.final_cost;
+        }
       };
       thread_pool.push_back((std::thread(functor)));
       indicator++;
@@ -180,7 +263,45 @@ void DABAProblemSolver::Solve(Problem &problem) {
     for (std::thread &thread : thread_pool) {
       thread.join();
     }
-    std::cout << epoch << " epoches" << std::endl;
+
+    if (current_error >= last_error) {
+      grama_index++;
+      for (const auto &[index, parameters] : camera_parameters_) {
+        auto &condition_parameters = last_camera_parameters_[index];
+        auto &pre_condition_parameters = last_camera_parameters[index];
+        std::copy(pre_condition_parameters.begin(), pre_condition_parameters.end(), condition_parameters.begin());
+      }
+
+      for (const auto &[index, parameters] : landmark_position_) {
+        auto &condition_parameters = last_landmark_position_[index];
+        auto& pre_condition_parameters = last_landmark_position[index];
+        std::copy(pre_condition_parameters.begin(),
+                  pre_condition_parameters.end(), condition_parameters.begin());
+      }
+      thread_pool.clear();
+      current_error = 0; 
+      for (auto &problem : cluster_problems) {
+        auto functor = [&problem, &current_error_mutex, &current_error]() {
+          ceres::Solver::Options options;
+          options.max_num_iterations = 500;
+          ceres::Solver::Summary summary;
+          ceres::Solve(options, &problem, &summary);
+
+          {
+            std::lock_guard<std::mutex> lk_(current_error_mutex);
+            current_error += summary.final_cost;
+          }
+        };
+        thread_pool.push_back((std::thread(functor)));
+      }
+      for (std::thread &thread : thread_pool) {
+        thread.join();
+      }
+    } else {
+      grama_index++;
+    }
+    std::cout << epoch << " epoches." << last_error << " -> " << current_error << std::endl;
+    last_error = current_error;
   }
 
   for (auto &[index, camera_parameter] : problem.cameras_) {
