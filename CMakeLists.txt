@@ -74,3 +74,4 @@ LinearPrograming
 add_subdirectory(bal)
 add_subdirectory(Graph)
 add_subdirectory(RGD)
+add_subdirectory(solver)
