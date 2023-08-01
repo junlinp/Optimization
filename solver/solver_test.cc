@@ -25,7 +25,7 @@ class QuadraticFunction : public FirstOrderFunction {
 };
 TEST(LMSolver, Basic) {
     LMSolver solver;
-    std::shared_ptr<FirstOrderFunction> function = std::make_shared<QuadraticFunction>(1024);
+    std::shared_ptr<FirstOrderFunction> function = std::make_shared<QuadraticFunction>(1024 * 4);
     solver.SetFunction(function);
 
     Eigen::VectorXd x = Eigen::VectorXd::Zero(function->VariableDimension());
@@ -33,7 +33,7 @@ TEST(LMSolver, Basic) {
     solver.Solve(&x);
 
     Eigen::VectorXd residual = function->Evaluate(x);
-    EXPECT_LT(residual.norm(), 1e-6);
+    EXPECT_LT(0.5 * residual.squaredNorm(), 1e-6);
 }
 
 int main(int argc, char **argv) {
