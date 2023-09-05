@@ -15,10 +15,8 @@ void CeresProblemSolver::Solve(Problem &problem) {
   ceres::Problem pro;
   for (auto &&[pairs, observation] : problem.observations_) {
     CameraParam &camera_parameter = problem.cameras_[pairs.first];
-    const double *camera_intrinsics = camera_parameter.data() + 6;
     Landmark &points = problem.points_[pairs.second];
     ceres::CostFunction *cost_func = ProjectFunction::CreateCostFunction(
-        camera_intrinsics[0], camera_intrinsics[1], camera_intrinsics[2],
         observation.u(), observation.v());
     pro.AddResidualBlock(cost_func, nullptr, camera_parameter.data(),
                          points.data());

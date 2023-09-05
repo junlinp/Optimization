@@ -4,7 +4,7 @@
 #include "linear_programing.h"
 #include <fstream>
 #include "LinearProgramingConfig.h"
-/*
+
 TEST(Conjugate_Gradient, PSD) {
     int n = 1024;
     Eigen::MatrixXd A = Eigen::MatrixXd::Random(n, n); 
@@ -15,8 +15,9 @@ TEST(Conjugate_Gradient, PSD) {
     ConjugateGradient(A, b, x);
 
     std::cout << "Conjugate Gradient Error : " << (A*x - b).norm() << std::endl;
+    EXPECT_LT((A*x - b).norm(), 1e-6);
 }
-*/
+
 TEST(LP, Test_Case) {
     Eigen::VectorXd c(4);
     c << 1, -1, 0, 0;

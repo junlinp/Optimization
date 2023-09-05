@@ -11,6 +11,8 @@ public:
     using AIndex = IndexSet;
     using BIndex = IndexSet;
     std::pair<AIndex, BIndex> Cut(const Graph& graph) const;
+
+    std::pair<AIndex, BIndex> SparseCut(const Graph& graph) const;
 };
 
 #endif //  GRAPH_GRAPH_NORMAL_CUT_H_

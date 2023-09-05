@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.13)
 project(Optimization)
+set (CMAKE_EXPORT_COMPILE_COMMANDS True) 
 find_package(Eigen3 REQUIRED)
 find_package(GTest REQUIRED)
 #find_package(FLEX REQUIRED)
@@ -73,3 +74,4 @@ LinearPrograming
 add_subdirectory(bal)
 add_subdirectory(Graph)
 add_subdirectory(RGD)
+add_subdirectory(solver)

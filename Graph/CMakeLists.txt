@@ -3,6 +3,7 @@ add_library(Graph graph.cc graph_normal_cut.cc)
 
 find_package(Eigen3 REQUIRED)
 target_link_libraries(Graph PUBLIC Eigen3::Eigen)
+target_include_directories(Graph PUBLIC ${CMAKE_SOURCE_DIR})
 
 find_package(GTest REQUIRED)
 
