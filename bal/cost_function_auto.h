@@ -202,7 +202,7 @@ struct WeightVectorDiff {
            T(std::sqrt((weight_))) * (parameter[i] - T(condition_parameters_[i]));
      }
      return true;
-  };
+  }
 
 };
 #endif // BAL_COST_FUNCTION_AUTO_H_

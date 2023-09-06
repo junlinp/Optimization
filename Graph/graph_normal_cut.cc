@@ -143,9 +143,9 @@ GraphNormalCut::SparseCut(const Graph& graph) const {
   for (int k = 0; k < A.outerSize(); k++) {
     for (Eigen::SparseMatrix<float>::InnerIterator it(A, k); it; ++it) {
       float v = it.value();
-      assert(!isnan(v));
+      assert(!std::isnan(v));
       v = v * d_sqrt_invert(it.row()) * d_sqrt_invert(it.col());
-      assert(!isnan(v));
+      assert(!std::isnan(v));
       it.valueRef() = v;
     }
   }

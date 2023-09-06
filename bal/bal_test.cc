@@ -1,7 +1,10 @@
+#include <ceres/autodiff_cost_function.h>
+#include <ceres/solver.h>
+
+#include "ceres/problem.h"
 #include "cost_function_auto.h"
 #include "evaluate.h"
 #include "gtest/gtest.h"
-
 TEST(Project_Function, simple_case) {
   // clang-format off
   double camera[9] = {
@@ -11,7 +14,7 @@ TEST(Project_Function, simple_case) {
   };
   // clang-format on
   double point[3] = {-0.612, 0.571759, -1.84708};
-  //double uv[2] = {-332.65, 262.09};
+  // double uv[2] = {-332.65, 262.09};
   double uv[2] = {332.65, -262.09};
 
   ProjectFunction p(uv[0], uv[1]);
@@ -30,32 +33,82 @@ TEST(Surrogate_Function, simple_case) {
   };
   // clang-format on
   double point[3] = {-0.612, 0.571759, -1.84708};
-  //double uv[2] = {-332.65, 262.09};
+
+  double condition_camera[9] = {
+      0.0157415, -0.0127909, -0.00440085,  -0.0340938,  -0.107514,
+      1.12022,   399.752,    -3.17706e-07, 5.88205e-13,
+  };
+  // clang-format on
+  double condition_point[3] = {-0.612, 0.571759, -1.84708};
+  // double uv[2] = {-332.65, 262.09};
   double uv[2] = {332.65, -262.09};
 
-  CameraSurrogateCostFunction camera_surrogate_cost_function(camera, point,uv[0], uv[1]);
-  LandmarkSurrogatecostFunction landmark_surrogate_cost_function(camera, point, uv[0], uv[1]);
+  CameraSurrogateCostFunction camera_surrogate_cost_function(
+      condition_camera, condition_point, uv[0], uv[1]);
+  LandmarkSurrogatecostFunction landmark_surrogate_cost_function(
+      condition_camera, condition_point, uv[0], uv[1]);
   RayCostFunction ray_cost_function(uv[0], uv[1]);
 
   double camera_residual[3];
   double landmark_residual[3];
   double ray_residual[3];
-  camera_surrogate_cost_function(camera,  camera_residual);
+
+  camera_surrogate_cost_function(camera, camera_residual);
   landmark_surrogate_cost_function(point, landmark_residual);
   ray_cost_function(camera, point, ray_residual);
 
-  std::cout << camera_residual[0] << ", " << camera_residual[1] << ", " << camera_residual[2] << std::endl;
-  std::cout << landmark_residual[0] << ", " << landmark_residual[1] << ", " << landmark_residual[2]
-            << std::endl;
+  std::cout << camera_residual[0] << ", " << camera_residual[1] << ", "
+            << camera_residual[2] << std::endl;
+  std::cout << landmark_residual[0] << ", " << landmark_residual[1] << ", "
+            << landmark_residual[2] << std::endl;
   std::cout << ray_residual[0] << ", " << ray_residual[1] << ", "
             << ray_residual[2] << std::endl;
-  
+
   Eigen::Vector3d camera_residual_vector(camera_residual);
   Eigen::Vector3d landmark_residual_vector(landmark_residual);
   Eigen::Vector3d ray_residual_vector(ray_residual);
 
-  EXPECT_LE(ray_residual_vector.squaredNorm(), camera_residual_vector.squaredNorm() + landmark_residual_vector.squaredNorm());
-  EXPECT_NEAR(ray_residual_vector.squaredNorm(), camera_residual_vector.squaredNorm() + landmark_residual_vector.squaredNorm(), 1e-6);
+  EXPECT_NEAR(ray_residual_vector.squaredNorm(),
+              camera_residual_vector.squaredNorm() +
+                  landmark_residual_vector.squaredNorm(),
+              1e-6);
+
+  ceres::Problem problem;
+  problem.AddResidualBlock(
+      new ceres::AutoDiffCostFunction<CameraSurrogateCostFunction, 3, 9>(
+          new CameraSurrogateCostFunction(condition_camera, condition_point,
+                                          uv[0], uv[1])),
+      nullptr, camera);
+  problem.AddResidualBlock(
+      new ceres::AutoDiffCostFunction<LandmarkSurrogatecostFunction, 3, 3>(
+          new LandmarkSurrogatecostFunction(condition_camera, condition_point,
+                                         uv[0], uv[1])),
+      nullptr, point);
+
+  ceres::Solver::Options options;
+  ceres::Solver::Summary summary;
+  ceres::Solve(options, &problem, &summary);
+  std::cout << summary.BriefReport() << std::endl;
+
+
+  camera_surrogate_cost_function(camera, camera_residual);
+  landmark_surrogate_cost_function(point, landmark_residual);
+  ray_cost_function(camera, point, ray_residual);
+  camera_residual_vector = Eigen::Vector3d(camera_residual);
+  landmark_residual_vector = Eigen::Vector3d(landmark_residual);
+  ray_residual_vector = Eigen::Vector3d(ray_residual);
+
+  std::cout << camera_residual[0] << ", " << camera_residual[1] << ", "
+            << camera_residual[2] << std::endl;
+  std::cout << landmark_residual[0] << ", " << landmark_residual[1] << ", "
+            << landmark_residual[2] << std::endl;
+  std::cout << ray_residual[0] << ", " << ray_residual[1] << ", "
+            << ray_residual[2] << std::endl;
+
+  EXPECT_LT(ray_residual_vector.squaredNorm(),
+              camera_residual_vector.squaredNorm() +
+                  landmark_residual_vector.squaredNorm()
+              );
 }
 
 // TEST(PLUS, JETD) {
@@ -96,7 +149,6 @@ TEST(Surrogate_Function, simple_case) {
 //   EXPECT_NEAR(2.0, error.Gradient()(0), 1e-7);
 //   EXPECT_NEAR(1.0, error.Gradient()(1), 1e-7);
 // }
-
 
 // TEST(DIVSION, JETD) {
 //   JETD<2> xy[2];
@@ -145,7 +197,6 @@ TEST(Surrogate_Function, simple_case) {
 //   bool check = GradientCheck<1, 1>(l, &x, 1e-7);
 //   EXPECT_TRUE(check);
 // }
-
 
 /*
 TEST(JETD, Gradient_Checker_Project_Function) {
