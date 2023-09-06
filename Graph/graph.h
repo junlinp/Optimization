@@ -4,6 +4,7 @@
 #include <map>
 
 #include "Eigen/Dense"
+#include "Eigen/Sparse"
 
 class Graph {
 public:
@@ -12,6 +13,7 @@ public:
   void SetEdgeValue(size_t lhs_node_id, size_t rhs_node_id, double value);
   double GetEdgeValue(size_t lhs_node_id, size_t rhs_node_id) const;
   Eigen::MatrixXd GetWeightMatrix() const;
+  Eigen::SparseMatrix<float> GetSparseWeightMatrix() const;
 
 private:
   size_t node_size_;
