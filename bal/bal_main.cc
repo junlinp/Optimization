@@ -18,6 +18,7 @@ int main(int argc, char**argv) {
     std::cout << "Cameras : " << problem.cameras_.size() << std::endl;
     std::cout << "Points : " << problem.points_.size()  << std::endl;
     std::cout << "Observation : " << problem.observations_.size() << std::endl;
+    std::cout << "Problem Origin MSE : " << problem.MSE() << std::endl;
     
     auto start = std::chrono::high_resolution_clock::now();
     // CeresProblemSolver solver;

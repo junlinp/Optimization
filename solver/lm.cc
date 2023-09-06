@@ -99,7 +99,11 @@ bool LMSolver::Solve(Eigen::VectorXd *x) {
     Eigen::VectorXd x0 = *x;
     size_t max_iteration = 1024;
     size_t iterator = 0;
-    double trust_region = 1.0;
+
+    Eigen::MatrixXd J = function_->Jacobians(x0);
+    Eigen::VectorXd e = function_->Evaluate(x0);
+    double trust_region = ((J.transpose() * J).inverse() * J * e).norm();
+    std::cout << "Trust Region : " << trust_region << std::endl;
     while(iterator++ < max_iteration) {
         Eigen::MatrixXd J = function_->Jacobians(x0);
         Eigen::VectorXd e = function_->Evaluate(x0);

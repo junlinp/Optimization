@@ -19,6 +19,12 @@ struct CameraParam {
   double *data() { return params; }
 
   const double *data() const { return params; }
+
+  std::array<double, 9> array() const {
+    std::array<double, 9> res;
+    std::copy(params, params + 9, res.begin());
+    return res;
+  }
 };
 
 struct Landmark {
@@ -33,6 +39,15 @@ struct Landmark {
   double *data() { return data_; }
 
   const double *data() const { return data_; }
+
+  std::array<double, 3> array() const {
+    std::array<double, 3> res;
+
+    res[0] = data_[0];
+    res[1] = data_[1];
+    res[2] = data_[2];
+    return res;
+  }
 };
 
 struct Observation {
