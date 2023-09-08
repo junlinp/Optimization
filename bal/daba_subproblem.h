@@ -76,6 +76,9 @@ public:
 
   std::map<int64_t, CameraParameters> camera_parameters_;
   std::map<int64_t, PointParameters> point_parameters_;
+  
+  std::map<int64_t, CameraParameters> previous_internal_camera_;
+  std::map<int64_t, PointParameters> previous_internal_point_;
 
   std::map<int64_t, CameraParameters> previous_external_camera_;
   std::map<int64_t, PointParameters> previous_external_point_;

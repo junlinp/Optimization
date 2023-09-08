@@ -1,11 +1,22 @@
 #include "daba_subproblem.h"
 
+#include <ceres/autodiff_cost_function.h>
 #include <fstream>
 #include <mutex>
 #include <string>
 
 #include "ceres/solver.h"
 #include "cost_function_auto.h"
+namespace {
+  template<class T, int DIM>
+  void NesteorvStep(const T* previous, T* current, double nesteorv_coeeficient) {
+    for (int i = 0; i < DIM; i++) {
+      current[i] =
+          current[i] + nesteorv_coeeficient * (current[i] - previous[i]);
+    }
+  }
+
+}
 
 DabaSubproblem::DabaSubproblem(int cluster_id) : cluster_id_(cluster_id) {}
 
@@ -89,12 +100,42 @@ void DabaSubproblem::ReceiveExternalPoint(
 }
 
 void DabaSubproblem::Start() {
+  
+  for (auto [camera_index, camera_parameters] : camera_parameters_) {
+    if (previous_external_camera_.count(camera_index) == 0) {
+      previous_internal_camera_.insert({camera_index, camera_parameters});
+    }
+
+    ceres::CostFunction *norm_function =
+        new ceres::AutoDiffCostFunction<WeightVectorDiff<9>, 9, 9>(
+            new WeightVectorDiff<9>(
+                previous_internal_camera_[camera_index].data(), 0.5));
+    
+    problem_.AddResidualBlock(norm_function, nullptr, camera_parameters.data());
+  }
+
+  for (auto [point_index, point_parameters] : point_parameters_) {
+    if (previous_external_point_.count(point_index) == 0) {
+      previous_internal_point_.insert({point_index, point_parameters});
+    }
+
+    ceres::CostFunction *norm_function =
+        new ceres::AutoDiffCostFunction<WeightVectorDiff<3>, 3, 3>(
+            new WeightVectorDiff<3>(
+                previous_internal_point_[point_index].data(), 0.5));
+    
+    problem_.AddResidualBlock(norm_function, nullptr, point_parameters.data());
+  }
   auto solve_functor = [this]() {
-    constexpr int max_iteration = 32;
+    constexpr int max_iteration = 2048;
     int iteration = 0;
     std::ofstream ofs(std::to_string(cluster_id_) + "loss.txt");
 
+    double s = 1;
+    double last_cost_value = std::numeric_limits<double>::max();
+
     while (iteration++ < max_iteration) {
+
       {
         std::lock_guard<std::mutex> lk_(external_camera_queue_mutex_);
         while (!external_other_camera_queue_.empty()) {
@@ -115,26 +156,62 @@ void DabaSubproblem::Start() {
         }
       }
 
-      // solve
+      double s_next = (std::sqrt(4 * s * s + 1) + 1) * 0.5;
+      double nesteorv_coeeficient = (s - 1) / s_next;
+      s = s_next;
 
-      std::cout << "cluster " << cluster_id_ << " start solve" << std::endl;
       ceres::Solver::Summary summary;
       ceres::Solver::Options options;
-      options.max_num_iterations = 16;
+      options.max_num_iterations = 512;
+      std::cout << "ceres solve" << std::endl;
       ceres::Solve(options, &problem_, &summary);
 
       std::cout << "cluster " << cluster_id_ << " iteration " << iteration
                 << " summary : " << summary.BriefReport() << std::endl;
+      
+      if (summary.final_cost > last_cost_value) {
+        std::cout << "cluster " << cluster_id_
+                  << " iteration cost increase from " << last_cost_value
+                  << " to " << summary.final_cost << std::endl;
+      }
+      last_cost_value = summary.final_cost;
+
       ofs << summary.BriefReport() << std::endl;
 
       for (auto &[camera_id, parameters] : previous_external_camera_) {
-        std::copy(camera_parameters_.at(camera_id).begin(),
-                  camera_parameters_.at(camera_id).end(), parameters.begin());
+        std::array<double, 9> nesteorv_parameters = camera_parameters_.at(camera_id);
+        NesteorvStep<double, 9>(parameters.data(), nesteorv_parameters.data(), nesteorv_coeeficient);
+        std::copy(nesteorv_parameters.begin(), nesteorv_parameters.end(),
+                  parameters.begin());
+        std::copy(nesteorv_parameters.begin(), nesteorv_parameters.end(),
+                  camera_parameters_.at(camera_id).begin());
       }
 
       for (auto &[point_id, parameters] : previous_external_point_) {
-        std::copy(point_parameters_.at(point_id).begin(),
-                  point_parameters_.at(point_id).end(), parameters.begin());
+        std::array<double, 3> nesteorv_parameters = point_parameters_.at(point_id);
+        NesteorvStep<double, 3>(parameters.data(), nesteorv_parameters.data(), nesteorv_coeeficient);
+        std::copy(nesteorv_parameters.begin(), nesteorv_parameters.end(),
+                  parameters.begin());
+        std::copy(nesteorv_parameters.begin(), nesteorv_parameters.end(),
+                  point_parameters_.at(point_id).begin());
+      }
+
+      for (auto &[camera_id, parameters] : previous_internal_camera_) {
+        std::array<double, 9> nesteorv_parameters = camera_parameters_.at(camera_id);
+        NesteorvStep<double, 9>(parameters.data(), nesteorv_parameters.data(), nesteorv_coeeficient);
+        std::copy(nesteorv_parameters.begin(), nesteorv_parameters.end(),
+                  parameters.begin());
+        std::copy(nesteorv_parameters.begin(), nesteorv_parameters.end(),
+                  camera_parameters_.at(camera_id).begin());
+      }
+
+      for (auto &[point_id, parameters] : previous_internal_point_) {
+        std::array<double, 3> nesteorv_parameters = point_parameters_.at(point_id);
+        NesteorvStep<double, 3>(parameters.data(), nesteorv_parameters.data(), nesteorv_coeeficient);
+        std::copy(nesteorv_parameters.begin(), nesteorv_parameters.end(),
+                  parameters.begin());
+        std::copy(nesteorv_parameters.begin(), nesteorv_parameters.end(),
+                  point_parameters_.at(point_id).begin());
       }
 
       for (auto &[camera_id, parameters] : previous_external_camera_) {
@@ -143,6 +220,12 @@ void DabaSubproblem::Start() {
 
       for (auto &[point_id, parameters] : previous_external_point_) {
         boardcast_point_callback_(point_id, point_parameters_.at(point_id));
+      }
+
+
+      // fix restart
+      if (iteration % 512 == 0) {
+        s = 1.0;
       }
     }
     ofs.close();
