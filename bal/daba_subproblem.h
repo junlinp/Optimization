@@ -72,6 +72,8 @@ public:
   auto ExternalOtherPoint() { return external_other_point_; }
 
  private:
+  void OptimizationWithPreviousPoint();
+  void OptimizationWithNesterovpoint(double nesteove_coeeficient);
   // camera id,  point id, uv
 
   std::map<int64_t, CameraParameters> camera_parameters_;
@@ -82,6 +84,8 @@ public:
 
   std::map<int64_t, CameraParameters> previous_external_camera_;
   std::map<int64_t, PointParameters> previous_external_point_;
+  std::map<int64_t, CameraParameters> condition_external_camera_;
+  std::map<int64_t, PointParameters> condition_external_point_;
 
   std::map<int64_t, CameraParameters> external_other_camera_;
   std::map<int64_t, PointParameters> external_other_point_;
