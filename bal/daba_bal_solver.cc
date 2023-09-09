@@ -120,7 +120,7 @@ double s(int k) {
 void DABAProblemSolver::Solve(Problem &problem) {
   std::map<int64_t, int64_t> cluster_of_camera_index;
   std::map<int64_t, int64_t> cluster_of_landmark_index;
-  const int partition = std::thread::hardware_concurrency();
+  const int partition = 2;
   RandomGraphCut(problem, partition, &cluster_of_camera_index,
                  &cluster_of_landmark_index);
 
@@ -129,27 +129,9 @@ void DABAProblemSolver::Solve(Problem &problem) {
     cluster_subproblems.push_back(std::make_shared<DabaSubproblem>(i));
   }
 
-  auto boardcast_camera_functor =
-      [&cluster_of_camera_index, &cluster_subproblems](
-          int64_t camera_index,
-          const std::array<double, 9> &camera_parameters) {
-        int64_t cluster_id = cluster_of_camera_index.at(camera_index);
-        cluster_subproblems[cluster_id]->ReceiveExternalCamera(camera_index,
-        camera_parameters);
-      };
 
-  auto boardcast_point_callback =
-      [&cluster_of_landmark_index, &cluster_subproblems](
-          int64_t point_index, const std::array<double, 3> &point_parameters) {
-        int64_t cluster_id = cluster_of_landmark_index.at(point_index);
-        cluster_subproblems[cluster_id]->ReceiveExternalPoint(point_index,
-         point_parameters);
-      };
-
-  for (auto &p : cluster_subproblems) {
-    p->SetBoardcastCallback(boardcast_camera_functor);
-    p->SetBoardcastPointCallback(boardcast_point_callback);
-  }
+  std::map<int64_t, int64_t> camera_boardcast_map;
+  std::map<int64_t, int64_t> point_boardcast_map;
 
   for (auto [index_pair, uv] : problem.observations_) {
     int64_t camera_index = index_pair.first;
@@ -173,7 +155,42 @@ void DABAProblemSolver::Solve(Problem &problem) {
           landmark_index, problem.points_.at(landmark_index).array(),
           camera_index, problem.cameras_.at(camera_index).array(),
           {uv.u(), uv.v()});
+
+      camera_boardcast_map[camera_index] = landmark_cluster_id;
+      point_boardcast_map[landmark_index] = camera_cluster_id;
     }
+  }
+
+  auto boardcast_functor =
+      [&camera_boardcast_map, &point_boardcast_map, &cluster_subproblems](
+          int iteration,
+          std::map<int64_t, std::array<double, 9>> camera_parameters,
+          std::map<int64_t, std::array<double, 3>> point_parameters) {
+        using CameraMap = std::map<int64_t, std::array<double, 9>>;
+        using PointMap = std::map<int64_t, std::array<double, 3>>;
+        std::map<int64_t, CameraMap> cluster_camera_map;
+        std::map<int64_t, PointMap> cluster_point_map;
+        
+        for (auto&& pair : camera_parameters) {
+          int64_t cluster_id = camera_boardcast_map.at(pair.first);
+          cluster_camera_map[cluster_id].insert(pair);
+        }
+
+        for (auto&& pair : point_parameters) {
+          int64_t cluster_id = point_boardcast_map.at(pair.first);
+          cluster_point_map[cluster_id].insert(pair);
+        }
+
+        for (auto& cluster_problem : cluster_subproblems) {
+          cluster_problem->ReceiveExternalParameters(
+              iteration,
+              cluster_camera_map[cluster_problem->ClusterId()],
+              cluster_point_map[cluster_problem->ClusterId()]);
+        }
+      };
+
+  for (auto &p : cluster_subproblems) {
+    p->SetBoardcastCallback(boardcast_functor);
   }
 
   for (auto &p : cluster_subproblems) {

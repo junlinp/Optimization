@@ -112,6 +112,7 @@ struct Problem {
       //std::cout << "Res norm : " << ray_res_map.norm() << std::endl;
     }
     // return std::sqrt(error / observations_.size());
+    std::cout << "ray_error : " << ray_error << std::endl;
     return std::sqrt(ray_error / observations_.size());
   }
 
