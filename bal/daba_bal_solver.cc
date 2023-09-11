@@ -120,7 +120,7 @@ double s(int k) {
 void DABAProblemSolver::Solve(Problem &problem) {
   std::map<int64_t, int64_t> cluster_of_camera_index;
   std::map<int64_t, int64_t> cluster_of_landmark_index;
-  const int partition = 2;
+  const int partition = 32;
   RandomGraphCut(problem, partition, &cluster_of_camera_index,
                  &cluster_of_landmark_index);
 
@@ -130,8 +130,8 @@ void DABAProblemSolver::Solve(Problem &problem) {
   }
 
 
-  std::map<int64_t, int64_t> camera_boardcast_map;
-  std::map<int64_t, int64_t> point_boardcast_map;
+  std::map<int64_t, std::vector<int64_t>> camera_boardcast_map;
+  std::map<int64_t, std::vector<int64_t>> point_boardcast_map;
 
   for (auto [index_pair, uv] : problem.observations_) {
     int64_t camera_index = index_pair.first;
@@ -156,8 +156,8 @@ void DABAProblemSolver::Solve(Problem &problem) {
           camera_index, problem.cameras_.at(camera_index).array(),
           {uv.u(), uv.v()});
 
-      camera_boardcast_map[camera_index] = landmark_cluster_id;
-      point_boardcast_map[landmark_index] = camera_cluster_id;
+      camera_boardcast_map[camera_index].push_back( landmark_cluster_id);
+      point_boardcast_map[landmark_index].push_back(camera_cluster_id);
     }
   }
 
@@ -172,19 +172,19 @@ void DABAProblemSolver::Solve(Problem &problem) {
         std::map<int64_t, PointMap> cluster_point_map;
         
         for (auto&& pair : camera_parameters) {
-          int64_t cluster_id = camera_boardcast_map.at(pair.first);
-          cluster_camera_map[cluster_id].insert(pair);
+          for (int64_t cluster_id : camera_boardcast_map.at(pair.first)) {
+            cluster_camera_map[cluster_id].insert(pair);
+          }
         }
 
         for (auto&& pair : point_parameters) {
-          int64_t cluster_id = point_boardcast_map.at(pair.first);
-          cluster_point_map[cluster_id].insert(pair);
+          for (int64_t cluster_id : point_boardcast_map.at(pair.first)) {
+            cluster_point_map[cluster_id].insert(pair);
+          }
         }
-
-        for (auto& cluster_problem : cluster_subproblems) {
+        for (auto &cluster_problem : cluster_subproblems) {
           cluster_problem->ReceiveExternalParameters(
-              iteration,
-              cluster_camera_map[cluster_problem->ClusterId()],
+              iteration, cluster_camera_map[cluster_problem->ClusterId()],
               cluster_point_map[cluster_problem->ClusterId()]);
         }
       };

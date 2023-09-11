@@ -130,9 +130,6 @@ void DabaSubproblem::Start() {
 
     while (iteration_++ < max_iteration) {
       CollectionNeighborParameters();
-
-
-
       double s_next = (std::sqrt(4 * s * s + 1) + 1) * 0.5;
       double nesteorv_coeeficient = (s - 1) / s_next;
       nesteorv_coeeficient = 0.0;
