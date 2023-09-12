@@ -122,7 +122,7 @@ void DabaSubproblem::Start() {
     // point_parameters.data());
   }
   auto solve_functor = [this]() {
-    constexpr int max_iteration = 1024;
+    constexpr int max_iteration = 128;
     iteration_ = 0;
 
     double s = 1;
@@ -134,7 +134,6 @@ void DabaSubproblem::Start() {
       ofs << iteration_ << " CollectionNeighborParameters() finish" << std::endl;
       double s_next = (std::sqrt(4 * s * s + 1) + 1) * 0.5;
       double nesteorv_coeeficient = (s - 1) / s_next;
-      nesteorv_coeeficient = 0.0;
       s = s_next;
 
       ceres::Solver::Summary summary;
@@ -150,7 +149,7 @@ void DabaSubproblem::Start() {
         std::cout << "cluster " << cluster_id_ << " restart." << iteration_
                   << "cost increase from " << last_cost_value << " to "
                   << summary.final_cost << std::endl;
-        s = 1.0;
+        // s = 1.0;
         OptimizationWithPreviousPoint();
       } else {
         // std::cout << "cluster begin" << camera_parameters_.begin()->second.at(0) << std::endl;
