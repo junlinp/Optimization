@@ -133,6 +133,9 @@ void DABAProblemSolver::Solve(Problem &problem) {
   std::map<int64_t, std::vector<int64_t>> camera_boardcast_map;
   std::map<int64_t, std::vector<int64_t>> point_boardcast_map;
 
+ 
+  std::vector<std::tuple<int64_t, int64_t, std::array<double, 2>>> surrogate_edges;
+
   for (auto [index_pair, uv] : problem.observations_) {
     int64_t camera_index = index_pair.first;
     int64_t landmark_index = index_pair.second;
@@ -158,6 +161,9 @@ void DABAProblemSolver::Solve(Problem &problem) {
 
       camera_boardcast_map[camera_index].push_back( landmark_cluster_id);
       point_boardcast_map[landmark_index].push_back(camera_cluster_id);
+
+      surrogate_edges.push_back(std::make_tuple(
+          camera_index, landmark_index, std::array<double, 2>{uv.u(), uv.v()}));
     }
   }
 
@@ -197,6 +203,7 @@ void DABAProblemSolver::Solve(Problem &problem) {
     p->Start();
     std::cout << "cluster " << p->ClusterId() << " start" << std::endl;
   }
+
   std::set<int64_t> camera_visited;
   std::set<int64_t> point_visited;
   for (auto &cluster_subproblem : cluster_subproblems) {
@@ -220,145 +227,4 @@ void DABAProblemSolver::Solve(Problem &problem) {
       }
     }
   }
-  
-  // assert(camera_visited.size() == problem.cameras_.size());
-  // assert(point_visited.size() == problem.points_.size());
-
-  //   if (camera_visited.find(camera_index) == camera_visited.end()) {
-  //     camera_visited.insert(camera_index);
-
-  //     ceres::Problem& problem = cluster_problems[camera_cluster_id];
-  //     auto *costfunction_ptr =
-  //         new ceres::AutoDiffCostFunction<WeightVectorDiff<9>, 9, 9>(
-  //             new WeightVectorDiff<9>(
-  //                 last_camera_parameters_[camera_index].data(), 0.1));
-  //     problem.AddResidualBlock(costfunction_ptr, nullptr,
-  //                              camera_parameters_[camera_index].data());
-  //   }
-
-  //   if (landmark_visited.find(landmark_index) == landmark_visited.end()) {
-  //     landmark_visited.insert(landmark_index);
-  //     ceres::Problem& problem = cluster_problems[landmark_cluster_id];
-  //     auto *costfunction_ptr =
-  //         new ceres::AutoDiffCostFunction<WeightVectorDiff<3>, 3, 3>(
-  //             new WeightVectorDiff<3>(
-  //                 last_landmark_position_[landmark_index].data(), 0.1));
-  //                 problem.AddResidualBlock(costfunction_ptr, nullptr,
-  //                 landmark_position_[landmark_index].data());
-  //   }
-  // }
-
-  // for (auto& problem : cluster_problems) {
-  //   std::cout << problem.NumResiduals() << std::endl;
-  // }
-  // size_t epoch = 0;
-  // std::map<int64_t, std::array<double, 9>> last_camera_parameters =
-  // camera_parameters_; std::map<int64_t, std::array<double, 3>>
-  // last_landmark_position = landmark_position_; int grama_index = 0; double
-  // last_error = std::numeric_limits<double>::max(); while (epoch++ < 1024) {
-  //   std::vector<std::thread> thread_pool;
-  //   double grama = (s(grama_index) -1) / s(grama_index+ 1);
-  //   for (const auto &[index, parameters] : camera_parameters_) {
-  //     auto &condition_parameters = last_camera_parameters_[index];
-
-  //     NesterovStep(last_camera_parameters[index], parameters, grama,
-  //     &condition_parameters); std::copy(parameters.begin(), parameters.end(),
-  //               last_camera_parameters[index].begin());
-  //   }
-
-  //   for (const auto &[index, parameters] : landmark_position_) {
-  //     auto &condition_parameters = last_landmark_position_[index];
-  //     NesterovStep(last_landmark_position[index], parameters, grama,
-  //     &condition_parameters); std::copy(parameters.begin(), parameters.end(),
-  //               last_landmark_position[index].begin());
-  //   }
-
-  //   int indicator = 0;
-  //   double current_error = 0.0;
-  //   std::mutex current_error_mutex;
-  //   for (auto& problem : cluster_problems) {
-  //     auto functor = [&problem, indicator, &current_error_mutex,
-  //     &current_error]() {
-  //       ceres::Solver::Options options;
-  //       options.max_num_iterations = 500;
-  //       ceres::Solver::Summary summary;
-  //       ceres::Solve(options, &problem, &summary);
-  //       std::cout << "Indicator : " << indicator << " Summary: " <<
-  //       summary.BriefReport() << std::endl;
-  //       {
-  //         std::lock_guard<std::mutex> lk_(current_error_mutex);
-  //         current_error += summary.final_cost;
-  //       }
-  //     };
-  //     thread_pool.push_back((std::thread(functor)));
-  //     indicator++;
-  //   }
-
-  //   for (std::thread &thread : thread_pool) {
-  //     thread.join();
-  //   }
-
-  //   if (current_error >= last_error) {
-  //     grama_index++;
-  //     for (const auto &[index, parameters] : camera_parameters_) {
-  //       auto &condition_parameters = last_camera_parameters_[index];
-  //       auto &pre_condition_parameters = last_camera_parameters[index];
-  //       std::copy(pre_condition_parameters.begin(),
-  //       pre_condition_parameters.end(), condition_parameters.begin());
-  //     }
-
-  //     for (const auto &[index, parameters] : landmark_position_) {
-  //       auto &condition_parameters = last_landmark_position_[index];
-  //       auto& pre_condition_parameters = last_landmark_position[index];
-  //       std::copy(pre_condition_parameters.begin(),
-  //                 pre_condition_parameters.end(),
-  //                 condition_parameters.begin());
-  //     }
-  //     thread_pool.clear();
-  //     current_error = 0;
-  //     for (auto &problem : cluster_problems) {
-  //       auto functor = [&problem, &current_error_mutex, &current_error]() {
-  //         ceres::Solver::Options options;
-  //         options.max_num_iterations = 500;
-  //         ceres::Solver::Summary summary;
-  //         ceres::Solve(options, &problem, &summary);
-
-  //         {
-  //           std::lock_guard<std::mutex> lk_(current_error_mutex);
-  //           current_error += summary.final_cost;
-  //         }
-  //       };
-  //       thread_pool.push_back((std::thread(functor)));
-  //     }
-  //     for (std::thread &thread : thread_pool) {
-  //       thread.join();
-  //     }
-  //   } else {
-  //     grama_index++;
-  //   }
-  //   std::cout << epoch << " epoches." << last_error << " -> " <<
-  //   current_error << std::endl; last_error = current_error;
-  // }
-
-  // for (auto &[index, camera_parameter] : problem.cameras_) {
-  //   std::array<double, 9> temp_parameter;
-
-  //   std::copy(camera_parameters_[index].begin(),
-  //             camera_parameters_[index].end(), temp_parameter.begin());
-
-  //   std::copy(temp_parameter.begin(), temp_parameter.end(),
-  //             camera_parameter.data());
-  // }
-
-  // for (auto &[index, landmark] : problem.points_) {
-  //   std::copy(landmark_position_[index].begin(),
-  //             landmark_position_[index].end(), landmark.data());
-  // }
-
-  
-  // ceres::Solver::Options options;
-  // options.max_num_iterations = 2;
-  // ceres::Solver::Summary summary;
-  // ceres::Solve(options, &global_problem, &summary);
-  // std::cout << "global : " << summary.FullReport() << std::endl;
 }

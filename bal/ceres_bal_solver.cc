@@ -4,6 +4,7 @@
 #include "ceres/solver.h"
 
 #include "problem.h"
+#include <ceres/autodiff_cost_function.h>
 #include <ceres/cost_function.h>
 
 #include "cost_function_auto.h"
@@ -34,4 +35,22 @@ void CeresProblemSolver::Solve(Problem &problem) {
   std::cout << "MSE : "
             << std::sqrt(summary.final_cost / problem.observations_.size())
             << std::endl;
+}
+void CeresRayProblemSolver::Solve(Problem &problem) {
+  ceres::Problem pro;
+  for (auto &&[pairs, observation] : problem.observations_) {
+    CameraParam &camera_parameter = problem.cameras_[pairs.first];
+    Landmark &points = problem.points_[pairs.second];
+    auto *cost_func = new ceres::AutoDiffCostFunction<RayCostFunction, 3, 9, 3>(
+        new RayCostFunction(observation.u(), observation.v()));
+    pro.AddResidualBlock(cost_func, nullptr, camera_parameter.data(),
+                         points.data());
+  }
+  ceres::Solver::Options solver_options;
+  solver_options.num_threads = 16;
+  solver_options.minimizer_progress_to_stdout = true;
+  solver_options.max_num_iterations = 500;
+  ceres::Solver::Summary summary;
+  ceres::Solve(solver_options, &pro, &summary);
+  std::cout << summary.BriefReport() << std::endl;
 }
