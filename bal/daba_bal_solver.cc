@@ -120,7 +120,7 @@ double s(int k) {
 void DABAProblemSolver::Solve(Problem &problem) {
   std::map<int64_t, int64_t> cluster_of_camera_index;
   std::map<int64_t, int64_t> cluster_of_landmark_index;
-  const int partition = 128;
+  const int partition = 2.0 * std::thread::hardware_concurrency();
   RandomGraphCut(problem, partition, &cluster_of_camera_index,
                  &cluster_of_landmark_index);
 
