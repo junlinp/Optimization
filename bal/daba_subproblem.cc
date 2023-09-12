@@ -127,9 +127,11 @@ void DabaSubproblem::Start() {
 
     double s = 1;
     double last_cost_value = std::numeric_limits<double>::max();
-
+    std::ofstream ofs(std::to_string(cluster_id_) + ".log");
     while (iteration_++ < max_iteration) {
+      ofs << iteration_ << " CollectionNeighborParameters()" << std::endl;
       CollectionNeighborParameters();
+      ofs << iteration_ << " CollectionNeighborParameters() finish" << std::endl;
       double s_next = (std::sqrt(4 * s * s + 1) + 1) * 0.5;
       double nesteorv_coeeficient = (s - 1) / s_next;
       nesteorv_coeeficient = 0.0;
@@ -139,8 +141,11 @@ void DabaSubproblem::Start() {
       ceres::Solver::Options options;
       options.max_num_iterations = 512;
       ceres::Solve(options, &problem_, &summary);
-      std::cout << "cluster " << cluster_id_ << " iteration " << iteration_
+      // std::cout << "cluster " << cluster_id_ << " iteration " << iteration_
+                // << " summary : " << summary.BriefReport() << std::endl;
+      ofs << "cluster " << cluster_id_ << " iteration " << iteration_
                 << " summary : " << summary.BriefReport() << std::endl;
+
       if (summary.final_cost > last_cost_value) {
         std::cout << "cluster " << cluster_id_ << " restart." << iteration_
                   << "cost increase from " << last_cost_value << " to "
@@ -165,8 +170,10 @@ void DabaSubproblem::Start() {
        }
 
        boardcast_callback_(iteration_, camera_boardcast, point_boardcast);
+       ofs << cluster_id_ << " Send its parameters at " << iteration_ << std::endl;
      }
     }
+    ofs.close();
   };
   thread_ = std::thread(solve_functor);
 }
@@ -269,38 +276,55 @@ void DabaSubproblem::CollectionNeighborParameters() {
 
   std::map<int64_t, CameraParameters> last_iteration_neighbor_camera_parameters;
   std::map<int64_t, PointParameters> last_iteration_neighbor_point_parameters;
+  
+  int wait_count = 0;
   while (last_iteration_neighbor_camera_parameters.size() <
              external_other_camera_.size() ||
          last_iteration_neighbor_point_parameters.size() <
              external_other_point_.size()) {
     {
+      wait_count++;
       std::lock_guard<std::mutex> lk_(external_queue_mutex_);
-      while (!external_other_camera_queue_.empty()) {
-        auto tuple = external_other_camera_queue_.front();
+      auto temp_external_other_camera_queue = std::move(external_other_camera_queue_);
+      auto temp_external_other_point_queue = std::move(external_other_point_queue_);
+      while (!temp_external_other_camera_queue.empty()) {
+        auto tuple = temp_external_other_camera_queue.front();
         int parameters_iteration = std::get<0>(tuple);
         int64_t camera_id = std::get<1>(tuple);
         auto camera_parameter = std::get<2>(tuple);
-        external_other_camera_queue_.pop();
+        temp_external_other_camera_queue.pop();
 
         if (parameters_iteration == last_iteration) {
           last_iteration_neighbor_camera_parameters[camera_id] = camera_parameter;
-        } 
+        } else if (parameters_iteration > last_iteration) {
+          external_other_camera_queue_.push(tuple);
+        }
       }
-      while (!external_other_point_queue_.empty()) {
-        auto tuple = external_other_point_queue_.front();
+      while (!temp_external_other_point_queue.empty()) {
+        auto tuple = temp_external_other_point_queue.front();
         int parameters_iteration = std::get<0>(tuple);
         int64_t point_id = std::get<1>(tuple);
         auto point_parameters = std::get<2>(tuple);
-        external_other_point_queue_.pop();
+        temp_external_other_point_queue.pop();
 
         if (parameters_iteration == last_iteration) {
           last_iteration_neighbor_point_parameters[point_id] = point_parameters;
+        } else if (parameters_iteration > last_iteration) {
+          external_other_point_queue_.push(tuple);
         }
       }
     }
-    // std::cout << cluster_id_ << " Receive " << last_iteration_neighbor_camera_parameters.size() << " neighbor camera. Total " << external_other_camera_.size() << std::endl;
-    // std::cout << cluster_id_ << " Receive " << last_iteration_neighbor_point_parameters.size() << " neighbor point. Total " << external_other_point_.size() << std::endl;
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    // if (wait_count % 16 == 0) {
+    //   std::cout << cluster_id_ << " Receive "
+    //             << last_iteration_neighbor_camera_parameters.size()
+    //             << " neighbor camera. Total " << external_other_camera_.size()
+    //             << std::endl;
+    //   std::cout << cluster_id_ << " Receive "
+    //             << last_iteration_neighbor_point_parameters.size()
+    //             << " neighbor point. Total " << external_other_point_.size()
+    //             << std::endl;
+    // }
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }
 
   // all the neighbor parameters received

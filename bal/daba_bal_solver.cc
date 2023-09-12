@@ -120,7 +120,7 @@ double s(int k) {
 void DABAProblemSolver::Solve(Problem &problem) {
   std::map<int64_t, int64_t> cluster_of_camera_index;
   std::map<int64_t, int64_t> cluster_of_landmark_index;
-  const int partition = 32;
+  const int partition = 128;
   RandomGraphCut(problem, partition, &cluster_of_camera_index,
                  &cluster_of_landmark_index);
 
@@ -135,6 +135,8 @@ void DABAProblemSolver::Solve(Problem &problem) {
 
  
   std::vector<std::tuple<int64_t, int64_t, std::array<double, 2>>> surrogate_edges;
+  std::set<int64_t> surrogate_camera_index;
+  std::set<int64_t> surrogate_point_index;
 
   for (auto [index_pair, uv] : problem.observations_) {
     int64_t camera_index = index_pair.first;
@@ -164,35 +166,78 @@ void DABAProblemSolver::Solve(Problem &problem) {
 
       surrogate_edges.push_back(std::make_tuple(
           camera_index, landmark_index, std::array<double, 2>{uv.u(), uv.v()}));
+      surrogate_camera_index.insert(camera_index);
+      surrogate_point_index.insert(landmark_index);
     }
   }
 
+  using CameraMap = std::map<int64_t, std::array<double, 9>>;
+  using PointMap = std::map<int64_t, std::array<double, 3>>;
+
+  std::map<int64_t, CameraMap> iteration_camera_parameters;
+  std::map<int64_t, PointMap> iteration_point_parameters;
+  std::mutex iteration_parameters_mutex;
+
   auto boardcast_functor =
-      [&camera_boardcast_map, &point_boardcast_map, &cluster_subproblems](
+      [&camera_boardcast_map, &point_boardcast_map, &cluster_subproblems,
+       &surrogate_camera_index, &surrogate_point_index, &surrogate_edges,
+       &iteration_camera_parameters, &iteration_point_parameters, &iteration_parameters_mutex](
           int iteration,
           std::map<int64_t, std::array<double, 9>> camera_parameters,
           std::map<int64_t, std::array<double, 3>> point_parameters) {
+
         using CameraMap = std::map<int64_t, std::array<double, 9>>;
         using PointMap = std::map<int64_t, std::array<double, 3>>;
         std::map<int64_t, CameraMap> cluster_camera_map;
         std::map<int64_t, PointMap> cluster_point_map;
-        
-        for (auto&& pair : camera_parameters) {
-          for (int64_t cluster_id : camera_boardcast_map.at(pair.first)) {
-            cluster_camera_map[cluster_id].insert(pair);
+
+        {
+          // std::lock_guard<std::mutex> lk_lock(iteration_parameters_mutex);
+          for (auto pair : camera_parameters) {
+            // iteration_camera_parameters[iteration].insert(pair);
+            for (int64_t cluster_id : camera_boardcast_map.at(pair.first)) {
+              cluster_camera_map[cluster_id].insert(pair);
+            }
+          }
+
+          for (auto pair : point_parameters) {
+            // iteration_point_parameters[iteration].insert(pair);
+            for (int64_t cluster_id : point_boardcast_map.at(pair.first)) {
+              cluster_point_map[cluster_id].insert(pair);
+            }
           }
         }
 
-        for (auto&& pair : point_parameters) {
-          for (int64_t cluster_id : point_boardcast_map.at(pair.first)) {
-            cluster_point_map[cluster_id].insert(pair);
-          }
-        }
         for (auto &cluster_problem : cluster_subproblems) {
-          cluster_problem->ReceiveExternalParameters(
-              iteration, cluster_camera_map[cluster_problem->ClusterId()],
-              cluster_point_map[cluster_problem->ClusterId()]);
+          std::thread(
+              [iteration, cluster_problem,
+               c_p = cluster_camera_map[cluster_problem->ClusterId()],
+               p_p = cluster_point_map[cluster_problem->ClusterId()]]() {
+                cluster_problem->ReceiveExternalParameters(iteration, c_p, p_p);
+              }).detach();
         }
+
+        // if (iteration_camera_parameters[iteration].size() ==
+        //         surrogate_camera_index.size() &&
+        //     iteration_point_parameters[iteration].size() ==
+        //         surrogate_point_index.size()) {
+            
+        //     double cost_value = 0.0;
+        //     for (auto edge : surrogate_edges) {
+        //       int64_t camera_index = std::get<0>(edge);
+        //       int64_t point_index = std::get<1>(edge);
+        //       std::array<double, 2> uv = std::get<2>(edge);
+        //       RayCostFunction function(uv[0], uv[1]);
+        //       double residual[3];
+        //       function(
+        //           iteration_camera_parameters[iteration][camera_index].data(),
+        //           iteration_point_parameters[iteration][point_index].data(),
+        //           residual);
+        //       cost_value += 0.5 * (residual[0] * residual[1] + residual[1] * residual[1] + residual[2] * residual[2]);
+        //     }
+
+        //     std::cout << "[" << iteration << "] Total surrogate : " << cost_value << " Mean : " << cost_value / surrogate_edges.size() << std::endl;
+        // }
       };
 
   for (auto &p : cluster_subproblems) {
