@@ -6,6 +6,7 @@
 #include "problem.h"
 #include <ceres/autodiff_cost_function.h>
 #include <ceres/cost_function.h>
+#include <ceres/types.h>
 
 #include "cost_function_auto.h"
 
@@ -50,6 +51,7 @@ void CeresRayProblemSolver::Solve(Problem &problem) {
   solver_options.num_threads = 16;
   solver_options.minimizer_progress_to_stdout = true;
   solver_options.max_num_iterations = 500;
+  solver_options.linear_solver_type = ceres::LinearSolverType::ITERATIVE_SCHUR;
   ceres::Solver::Summary summary;
   ceres::Solve(solver_options, &pro, &summary);
   std::cout << summary.BriefReport() << std::endl;
