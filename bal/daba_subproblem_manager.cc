@@ -150,6 +150,7 @@ void DABASubProblemManager::Solve(Problem& problem) {
 
   std::map<int64_t, ceres::Problem> camera_cost_functions;
   std::map<int64_t, ceres::Problem> point_cost_functions;
+  std::vector<std::function<double()>> ray_cost_functions;
 
   for (auto [index_pair, uv] : problem.observations_) {
     int64_t camera_index = index_pair.first;
@@ -172,10 +173,18 @@ void DABASubProblemManager::Solve(Problem& problem) {
         camera_costfunction, nullptr, camera_parameters_[camera_index].data());
     point_cost_functions[landmark_index].AddResidualBlock(
         point_costfunction, nullptr, point_parameters_[landmark_index].data());
+
+    ray_cost_functions.push_back([uv = uv, this, camera_index, landmark_index](){
+        RayCostFunction ray_cost_func(uv.u(), uv.v());
+        return ray_cost_func.EvaluateCost(
+            camera_parameters_[camera_index].data(),
+            point_parameters_[landmark_index].data());
+    });
   }
 
   int iteration = 0;
-  int max_iteration = 256;
+  int max_iteration = 1024;
+  double function_tolerance = 1e-6;
   std::cout << "Start loop" << std::endl;
   double last_error = std::numeric_limits<double>::max();
   double s = 1;
@@ -215,20 +224,20 @@ void DABASubProblemManager::Solve(Problem& problem) {
     profiler.StartProfile("ComputeError");
     {
 
-      for (auto [index_pair, uv] : problem.observations_) {
-        int64_t camera_index = index_pair.first;
-        int64_t landmark_index = index_pair.second;
-        RayCostFunction ray_cost_func(uv.u(), uv.v());
-
-        error += ray_cost_func.EvaluateCost(
-            camera_parameters_[camera_index].data(),
-            point_parameters_[landmark_index].data());
+      for (auto& functor : ray_cost_functions) {
+        error += functor();
       }
     }
     profiler.EndProfile("ComputeError");
 
     std::cout << iteration << " final cost:" << error << std::endl;
     profiler.StartProfile("UpdateStep");
+
+    if (std::abs(error - last_error) / error < function_tolerance) {
+      std::cout << "Function tolerance reached.quit early." << std::endl;
+      return;
+    }
+
     if (error <= last_error) {
       for (auto& [camera_index, p] : condition_camera_parameters_) {
         NesteorvStep<double, 9>(

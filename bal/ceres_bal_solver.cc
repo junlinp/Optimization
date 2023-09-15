@@ -54,5 +54,5 @@ void CeresRayProblemSolver::Solve(Problem &problem) {
   solver_options.linear_solver_type = ceres::LinearSolverType::ITERATIVE_SCHUR;
   ceres::Solver::Summary summary;
   ceres::Solve(solver_options, &pro, &summary);
-  std::cout << summary.BriefReport() << std::endl;
+  std::cout << summary.FullReport() << std::endl;
 }
