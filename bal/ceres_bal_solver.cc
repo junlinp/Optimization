@@ -9,7 +9,7 @@
 #include <ceres/types.h>
 
 #include "cost_function_auto.h"
-
+#include <thread>
 // camera model see
 // http://grail.cs.washington.edu/projects/bal/
 //
@@ -48,7 +48,7 @@ void CeresRayProblemSolver::Solve(Problem &problem) {
                          points.data());
   }
   ceres::Solver::Options solver_options;
-  solver_options.num_threads = 16;
+  solver_options.num_threads = std::thread::hardware_concurrency();
   solver_options.minimizer_progress_to_stdout = true;
   solver_options.max_num_iterations = 500;
   solver_options.linear_solver_type = ceres::LinearSolverType::ITERATIVE_SCHUR;
