@@ -11,6 +11,11 @@
 #include "bal/problem.h"
 #include "ceres/problem.h"
 
+using CameraParameters = std::array<double, 9>;
+using PointParameters = std::array<double, 3>;
+
+
+
 class DabaSubproblem {
 
 public:
@@ -34,8 +39,6 @@ public:
                 const std::array<double, 2> &uv);
 
   using Edge = std::tuple<int64_t, int64_t, std::array<double, 2>>;
-  using CameraParameters = std::array<double, 9>;
-  using PointParameters = std::array<double, 3>;
   // should be thread-safe
   void ReceiveExternalParameters(
       int iteration,

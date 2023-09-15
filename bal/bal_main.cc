@@ -8,6 +8,7 @@
 #include <chrono>
 #include "ceres_bal_solver.h"
 #include "daba_bal_solver.h"
+#include "daba_subproblem_manager.h"
 int main(int argc, char**argv) {
     if(argc < 2) {
 	    std::fprintf(stderr, "Usage: %s /path/to/data_set\n", argv[0]);
@@ -28,6 +29,9 @@ int main(int argc, char**argv) {
     if (argc == 3) {
         if (std::string(argv[2]) == "ceres") {
             solver = std::make_shared<CeresRayProblemSolver>();
+        }
+        if (std::string(argv[2]) == "manager") {
+            solver = std::make_shared<DABASubProblemManager>();
         }
     }
     solver->Solve(problem);
