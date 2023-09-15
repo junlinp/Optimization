@@ -104,7 +104,7 @@ struct Problem {
       double ray_res[3];
       ray_cost_func(camera_parameter.data(), points.data(), ray_res);
       error += res[0] * res[0] + res[1] * res[1];
-      ray_error += 0.5 * (ray_res[0] * ray_res[0] + ray_res[1] + ray_res[1] +ray_res[2] * ray_res[2]);
+      ray_error += ray_cost_func.EvaluateCost(camera_parameter.data(), points.data());
       Eigen::Vector2d res_map(res[0], res[1]);
       Eigen::Vector3d ray_res_map(ray_res[0], ray_res[1], ray_res[2]);
 

@@ -5,6 +5,7 @@
 #include <ceres/problem.h>
 #include <ceres/solver.h>
 
+#include <chrono>
 #include <condition_variable>
 #include <future>
 #include <limits>
@@ -95,6 +96,43 @@ inline ThreadPool::~ThreadPool() {
   condition.notify_all();
   for (std::thread& worker : workers) worker.join();
 }
+
+class Profiler {
+public:
+void StartProfile(const std::string& sample_name) {
+    if (sample_total_count_.find(sample_name) == sample_total_count_.end()) {
+        sample_total_count_.insert({sample_name, 0});
+        sample_total_time_.insert({sample_name, 0});
+    }
+
+    sample_start_time_[sample_name] = std::chrono::high_resolution_clock::now();
+}
+
+void EndProfile(const std::string& sample_name) {
+  std::chrono::time_point end_time = std::chrono::high_resolution_clock::now();
+
+  assert(end_time > sample_start_time_[sample_name]);
+
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+      end_time - sample_start_time_[sample_name]);
+  
+  sample_total_time_[sample_name] += duration.count();
+  sample_total_count_[sample_name]++;
+}
+
+~Profiler() {
+    for (auto [sample_name, time] : sample_total_time_) {
+      std::cout << sample_name << " means:"
+                << static_cast<double>(time) / sample_total_count_[sample_name]
+                << " ms "<< std::endl;
+    }
+}
+
+std::map<std::string, decltype(std::chrono::high_resolution_clock::now())> sample_start_time_;
+std::map<std::string, int64_t> sample_total_time_;
+std::map<std::string, int64_t> sample_total_count_;
+};
+
 }  // namespace
 
 void DABASubProblemManager::Solve(Problem& problem) {
@@ -141,33 +179,27 @@ void DABASubProblemManager::Solve(Problem& problem) {
   std::cout << "Start loop" << std::endl;
   double last_error = std::numeric_limits<double>::max();
   double s = 1;
-
+  Profiler profiler;
   while (iteration++ < max_iteration) {
     double error = 0.0;
-    std::mutex error_mutex;
     double s_next = (std::sqrt(4 * s * s + 1) + 1) * 0.5;
     double nesteorv_coeeficient = (s - 1) / s_next;
     s = s_next;
 
-    auto camera_functor = [&camera_cost_functions, &error,
-                           &error_mutex](int64_t c_i) {
+    auto camera_functor = [&camera_cost_functions](int64_t c_i) {
       ceres::Solver::Summary summary;
       ceres::Solver::Options options;
       options.max_num_iterations = 512;
       ceres::Solve(options, &(camera_cost_functions.at(c_i)), &summary);
-      std::lock_guard<std::mutex> lk(error_mutex);
-      error += summary.final_cost;
     };
-    auto point_functor = [&point_cost_functions, &error,
-                          &error_mutex](int64_t p_i) {
+    auto point_functor = [&point_cost_functions
+                          ](int64_t p_i) {
       ceres::Solver::Summary summary;
       ceres::Solver::Options options;
       options.max_num_iterations = 512;
       ceres::Solve(options, &(point_cost_functions.at(p_i)), &summary);
-      std::lock_guard<std::mutex> lk(error_mutex);
-      error += summary.final_cost;
     };
-
+    profiler.StartProfile("Solve");
     {
       ThreadPool thread_pool(std::thread::hardware_concurrency());
 
@@ -179,9 +211,24 @@ void DABASubProblemManager::Solve(Problem& problem) {
         thread_pool.enqueue(point_functor, point_index);
       }
     }
+    profiler.EndProfile("Solve");
+    profiler.StartProfile("ComputeError");
+    {
+
+      for (auto [index_pair, uv] : problem.observations_) {
+        int64_t camera_index = index_pair.first;
+        int64_t landmark_index = index_pair.second;
+        RayCostFunction ray_cost_func(uv.u(), uv.v());
+
+        error += ray_cost_func.EvaluateCost(
+            camera_parameters_[camera_index].data(),
+            point_parameters_[landmark_index].data());
+      }
+    }
+    profiler.EndProfile("ComputeError");
 
     std::cout << iteration << " final cost:" << error << std::endl;
-
+    profiler.StartProfile("UpdateStep");
     if (error <= last_error) {
       for (auto& [camera_index, p] : condition_camera_parameters_) {
         NesteorvStep<double, 9>(
@@ -204,6 +251,7 @@ void DABASubProblemManager::Solve(Problem& problem) {
       }
       last_error = error;
     } else {
+      std::cout << iteration << " need restart" << std::endl;
       for (auto& [camera_index, p] : previous_camera_parameters_) {
         std::copy(p.begin(), p.end(), camera_parameters_[camera_index].begin());
         std::copy(p.begin(), p.end(),
@@ -216,6 +264,7 @@ void DABASubProblemManager::Solve(Problem& problem) {
                   condition_point_parameters_[point_index].begin());
       }
     }
+    profiler.EndProfile("UpdateStep");
   }
 
   for (auto pair : camera_parameters_) {

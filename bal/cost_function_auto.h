@@ -197,6 +197,13 @@ struct RayCostFunction {
     residual_map = pij - lambda * (residual_map + translation);
     return true;
   }
+
+  double EvaluateCost(const double* camera_parameter,const double* landmark_parameter) const {
+    double res[3];
+
+    (*this)(camera_parameter, landmark_parameter, res);
+    return 0.5 * (res[0] * res[0] + res[1] * res[1] + res[2] * res[2]);
+  }
 };
 
 template<int DIM>
