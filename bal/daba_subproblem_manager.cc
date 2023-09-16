@@ -36,7 +36,7 @@ class ThreadPool {
   // need to keep track of threads so we can join them
   std::vector<std::thread> workers;
   // the task queue
-  std::queue<std::function<void()> > tasks;
+  std::queue<std::function<void()>> tasks;
 
   // synchronization
   std::mutex queue_mutex;
@@ -71,7 +71,7 @@ auto ThreadPool::enqueue(F&& f, Args&&... args)
     -> std::future<typename std::result_of<F(Args...)>::type> {
   using return_type = typename std::result_of<F(Args...)>::type;
 
-  auto task = std::make_shared<std::packaged_task<return_type()> >(
+  auto task = std::make_shared<std::packaged_task<return_type()>>(
       std::bind(std::forward<F>(f), std::forward<Args>(args)...));
 
   std::future<return_type> res = task->get_future();
@@ -98,39 +98,41 @@ inline ThreadPool::~ThreadPool() {
 }
 
 class Profiler {
-public:
-void StartProfile(const std::string& sample_name) {
+ public:
+  void StartProfile(const std::string& sample_name) {
     if (sample_total_count_.find(sample_name) == sample_total_count_.end()) {
-        sample_total_count_.insert({sample_name, 0});
-        sample_total_time_.insert({sample_name, 0});
+      sample_total_count_.insert({sample_name, 0});
+      sample_total_time_.insert({sample_name, 0});
     }
 
     sample_start_time_[sample_name] = std::chrono::high_resolution_clock::now();
-}
+  }
 
-void EndProfile(const std::string& sample_name) {
-  std::chrono::time_point end_time = std::chrono::high_resolution_clock::now();
+  void EndProfile(const std::string& sample_name) {
+    std::chrono::time_point end_time =
+        std::chrono::high_resolution_clock::now();
 
-  assert(end_time > sample_start_time_[sample_name]);
+    assert(end_time > sample_start_time_[sample_name]);
 
-  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-      end_time - sample_start_time_[sample_name]);
-  
-  sample_total_time_[sample_name] += duration.count();
-  sample_total_count_[sample_name]++;
-}
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+        end_time - sample_start_time_[sample_name]);
 
-~Profiler() {
+    sample_total_time_[sample_name] += duration.count();
+    sample_total_count_[sample_name]++;
+  }
+
+  ~Profiler() {
     for (auto [sample_name, time] : sample_total_time_) {
       std::cout << sample_name << " means:"
                 << static_cast<double>(time) / sample_total_count_[sample_name]
-                << " ms "<< std::endl;
+                << " ms " << std::endl;
     }
-}
+  }
 
-std::map<std::string, decltype(std::chrono::high_resolution_clock::now())> sample_start_time_;
-std::map<std::string, int64_t> sample_total_time_;
-std::map<std::string, int64_t> sample_total_count_;
+  std::map<std::string, decltype(std::chrono::high_resolution_clock::now())>
+      sample_start_time_;
+  std::map<std::string, int64_t> sample_total_time_;
+  std::map<std::string, int64_t> sample_total_count_;
 };
 
 }  // namespace
@@ -140,12 +142,16 @@ void DABASubProblemManager::Solve(Problem& problem) {
     camera_parameters_[camera_index] = camera_parameters.array();
     condition_camera_parameters_[camera_index] = camera_parameters.array();
     previous_camera_parameters_[camera_index] = camera_parameters.array();
+    current_camera_parameters_[camera_index] = camera_parameters.array();
+    auxiliary_camera_parameters_[camera_index] = camera_parameters.array();
   }
 
   for (const auto& [point_index, point_parameters] : problem.points_) {
     point_parameters_[point_index] = point_parameters.array();
     condition_point_parameters_[point_index] = point_parameters.array();
     previous_point_parameters_[point_index] = point_parameters.array();
+    current_point_parameters_[point_index] = point_parameters.array();
+    auxiliary_point_parameters_[point_index] = point_parameters.array();
   }
 
   std::map<int64_t, ceres::Problem> camera_cost_functions;
@@ -174,26 +180,67 @@ void DABASubProblemManager::Solve(Problem& problem) {
     point_cost_functions[landmark_index].AddResidualBlock(
         point_costfunction, nullptr, point_parameters_[landmark_index].data());
 
-    ray_cost_functions.push_back([uv = uv, this, camera_index, landmark_index](){
-        RayCostFunction ray_cost_func(uv.u(), uv.v());
-        return ray_cost_func.EvaluateCost(
-            camera_parameters_[camera_index].data(),
-            point_parameters_[landmark_index].data());
-    });
+    ray_cost_functions.push_back(
+        [uv = uv, this, camera_index, landmark_index]() {
+          RayCostFunction ray_cost_func(uv.u(), uv.v());
+          return ray_cost_func.EvaluateCost(
+              camera_parameters_[camera_index].data(),
+              point_parameters_[landmark_index].data());
+        });
   }
 
   int iteration = 0;
-  int max_iteration = 1024;
+  int max_iteration = 512;
   double function_tolerance = 1e-6;
-  std::cout << "Start loop" << std::endl;
   double last_error = std::numeric_limits<double>::max();
-  double s = 1;
+  double t = 0;
+  double c = 0.0;
+  double delta = 1e-5;
+  double q = 1.0;
+  double eta = 0.8;
+  {
+    for (auto& functor : ray_cost_functions) {
+      c += functor();
+    }
+  }
   Profiler profiler;
   while (iteration++ < max_iteration) {
-    double error = 0.0;
-    double s_next = (std::sqrt(4 * s * s + 1) + 1) * 0.5;
-    double nesteorv_coeeficient = (s - 1) / s_next;
-    s = s_next;
+    double function_error = 0.0;
+    double t_next = (std::sqrt(4 * t * t + 1) + 1) * 0.5;
+    if (iteration == 1) {
+        t_next = 1.0;
+    }
+
+    profiler.StartProfile("Update y");
+    for (auto& [camera_index, condition_parameters] :
+         condition_camera_parameters_) {
+      auto& current_parameters = current_camera_parameters_.at(camera_index);
+      auto& previous_parameters = previous_camera_parameters_.at(camera_index);
+      auto& auxiliary_parameters =
+          auxiliary_camera_parameters_.at(camera_index);
+      for (int i = 0; i < 9; i++) {
+        condition_parameters[i] =
+            current_parameters[i] +
+            t / t_next * (auxiliary_parameters[i] - current_parameters[i]) +
+            (t - 1) / t_next * (current_parameters[i] - previous_parameters[i]);
+      }
+      camera_parameters_[camera_index] = condition_parameters;
+    }
+
+    for (auto& [point_index, condition_parameters] :
+         condition_point_parameters_) {
+      auto& current_parameters = current_point_parameters_.at(point_index);
+      auto& previous_parameters = previous_point_parameters_.at(point_index);
+      auto& auxiliary_parameters = auxiliary_point_parameters_.at(point_index);
+      for (int i = 0; i < 3; i++) {
+        condition_parameters[i] =
+            current_parameters[i] +
+            t / t_next * (auxiliary_parameters[i] - current_parameters[i]) +
+            (t - 1) / t_next * (current_parameters[i] - previous_parameters[i]);
+      }
+      point_parameters_[point_index] = condition_parameters;
+    }
+    profiler.EndProfile("Update y");
 
     auto camera_functor = [&camera_cost_functions](int64_t c_i) {
       ceres::Solver::Summary summary;
@@ -201,14 +248,14 @@ void DABASubProblemManager::Solve(Problem& problem) {
       options.max_num_iterations = 512;
       ceres::Solve(options, &(camera_cost_functions.at(c_i)), &summary);
     };
-    auto point_functor = [&point_cost_functions
-                          ](int64_t p_i) {
+    auto point_functor = [&point_cost_functions](int64_t p_i) {
       ceres::Solver::Summary summary;
       ceres::Solver::Options options;
       options.max_num_iterations = 512;
       ceres::Solve(options, &(point_cost_functions.at(p_i)), &summary);
     };
-    profiler.StartProfile("Solve");
+
+    profiler.StartProfile("Solve z=f(y)");
     {
       ThreadPool thread_pool(std::thread::hardware_concurrency());
 
@@ -220,67 +267,128 @@ void DABASubProblemManager::Solve(Problem& problem) {
         thread_pool.enqueue(point_functor, point_index);
       }
     }
-    profiler.EndProfile("Solve");
-    profiler.StartProfile("ComputeError");
+    profiler.EndProfile("Solve z=f(y)");
+
+    double auxiliary_error = 0.0;
+    profiler.StartProfile("Compute f(z)");
     {
-
       for (auto& functor : ray_cost_functions) {
-        error += functor();
+        auxiliary_error += functor();
       }
     }
-    profiler.EndProfile("ComputeError");
+    function_error = auxiliary_error;
+    profiler.EndProfile("Compute f(z)");
 
-    std::cout << iteration << " final cost:" << error << std::endl;
-    profiler.StartProfile("UpdateStep");
-
-    if (std::abs(error - last_error) / error < function_tolerance) {
-      std::cout << "Function tolerance reached.quit early." << std::endl;
-      return;
+    profiler.StartProfile("Compute norm(z - y)");
+    double normal_diff = 0.0;
+    for (auto& [camera_index, auxiliary_parameters] :
+         auxiliary_camera_parameters_) {
+      auxiliary_parameters = camera_parameters_[camera_index];
+      const auto& condition_parameters =
+          condition_camera_parameters_[camera_index];
+      for (int i = 0; i < 9; i++) {
+        normal_diff +=
+            std::pow((auxiliary_parameters[i] - condition_parameters[i]), 2);
+      }
     }
 
-    if (error <= last_error) {
-      for (auto& [camera_index, p] : condition_camera_parameters_) {
-        NesteorvStep<double, 9>(
-            previous_camera_parameters_[camera_index].data(),
-            camera_parameters_[camera_index].data(), p.data(),
-            nesteorv_coeeficient);
-        std::copy(camera_parameters_[camera_index].begin(),
-                  camera_parameters_[camera_index].end(),
-                  previous_camera_parameters_[camera_index].begin());
-        std::copy(p.begin(), p.end(), camera_parameters_[camera_index].begin());
+    for (auto& [point_index, auxiliary_parameters] :
+         auxiliary_point_parameters_) {
+      auxiliary_parameters = point_parameters_[point_index];
+      const auto& condition_parameters =
+          condition_point_parameters_[point_index];
+      for (int i = 0; i < 3; i++) {
+        normal_diff +=
+            std::pow((auxiliary_parameters[i] - condition_parameters[i]), 2);
       }
-      for (auto& [point_index, p] : condition_point_parameters_) {
-        NesteorvStep<double, 3>(previous_point_parameters_[point_index].data(),
-                                point_parameters_[point_index].data(), p.data(),
-                                nesteorv_coeeficient);
-        std::copy(point_parameters_[point_index].begin(),
-                  point_parameters_[point_index].end(),
-                  previous_point_parameters_[point_index].begin());
-        std::copy(p.begin(), p.end(), point_parameters_[point_index].begin());
-      }
-      last_error = error;
+    }
+    profiler.EndProfile("Compute norm(z - y)");
+    std::cout << iteration << " auxiliary_error : " << auxiliary_error << std::endl;
+    if (auxiliary_error <= c - delta * normal_diff) {
+        profiler.StartProfile("x_next = z");
+        for (auto& [camera_index, previous_parameters] : previous_camera_parameters_) {
+            previous_parameters = current_camera_parameters_[camera_index];
+            current_camera_parameters_[camera_index] = camera_parameters_[camera_index];
+        }
+        for (auto& [point_index, previous_parameters] : previous_point_parameters_) {
+            previous_parameters = current_point_parameters_[point_index];
+            current_point_parameters_[point_index] = point_parameters_[point_index];
+        }
+        profiler.EndProfile("x_next = z");
     } else {
-      std::cout << iteration << " need restart" << std::endl;
-      for (auto& [camera_index, p] : previous_camera_parameters_) {
-        std::copy(p.begin(), p.end(), camera_parameters_[camera_index].begin());
-        std::copy(p.begin(), p.end(),
-                  condition_camera_parameters_[camera_index].begin());
+        profiler.StartProfile("v = min f(x)");
+      for (auto& [camera_index, current_parameters] :
+           current_camera_parameters_) {
+        condition_camera_parameters_[camera_index] = current_parameters;
+        camera_parameters_[camera_index] = current_parameters;
       }
+      for (auto& [point_index, current_parameters] :
+           current_point_parameters_) {
+        condition_point_parameters_[point_index] = current_parameters;
+        point_parameters_[point_index] = current_parameters;
+      }
+      {
+        ThreadPool thread_pool(std::thread::hardware_concurrency());
 
-      for (auto& [point_index, p] : previous_point_parameters_) {
-        std::copy(p.begin(), p.end(), point_parameters_[point_index].begin());
-        std::copy(p.begin(), p.end(),
-                  condition_point_parameters_[point_index].begin());
+        for (auto& [camera_index, problem] : camera_cost_functions) {
+          thread_pool.enqueue(camera_functor, camera_index);
+        }
+
+        for (auto& [point_index, problem] : point_cost_functions) {
+          thread_pool.enqueue(point_functor, point_index);
+        }
+      }
+      profiler.EndProfile("v = min f(x)");
+      profiler.StartProfile("f(v)");
+      double temp_error = 0.0;
+      {
+        for (auto& functor : ray_cost_functions) {
+          temp_error += functor();
+        }
+      }
+      profiler.EndProfile("f(v)");
+
+      if (auxiliary_error <= temp_error) {
+        for (auto& [camera_index, previous_parameters] : previous_camera_parameters_) {
+            previous_parameters = current_camera_parameters_[camera_index];
+            current_camera_parameters_[camera_index] = auxiliary_camera_parameters_[camera_index];
+        }
+        for (auto& [point_index, previous_parameters] : previous_point_parameters_) {
+            previous_parameters = current_point_parameters_[point_index];
+            current_point_parameters_[point_index] = auxiliary_point_parameters_[point_index];
+        }
+      } else {
+        std::cout << iteration << " correct step is not a  good extrapolation" << std::endl;
+        for (auto& [camera_index, previous_parameters] : previous_camera_parameters_) {
+            previous_parameters = current_camera_parameters_[camera_index];
+            current_camera_parameters_[camera_index] = camera_parameters_[camera_index];
+        }
+        for (auto& [point_index, previous_parameters] : previous_point_parameters_) {
+            previous_parameters = current_point_parameters_[point_index];
+            current_point_parameters_[point_index] = point_parameters_[point_index];
+        }
+        function_error = temp_error;
       }
     }
-    profiler.EndProfile("UpdateStep");
+    t = t_next;
+    double q_next = eta * q + 1;
+    c = (eta * q * c + function_error) / q_next;
+    q = q_next;
+    std::cout << iteration << " function cost:" << function_error
+              << std::endl;
+
+    if (std::abs(function_error - last_error) / function_error < function_tolerance) {
+      std::cout << "Function tolerance reached.quit early." << std::endl;
+      break;
+    }
+    last_error = function_error;
   }
 
-  for (auto pair : camera_parameters_) {
+  for (auto pair : current_camera_parameters_) {
     std::copy(pair.second.begin(), pair.second.end(),
               problem.cameras_.at(pair.first).data());
   }
-  for (auto pair : point_parameters_) {
+  for (auto pair : current_point_parameters_) {
     std::copy(pair.second.begin(), pair.second.end(),
               problem.points_.at(pair.first).data());
   }
