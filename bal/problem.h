@@ -25,6 +25,39 @@ struct CameraParam {
     std::copy(params, params + 9, res.begin());
     return res;
   }
+
+  static std::array<double, 9 + 3 + 3> ConvertLieAlgrebaToRotationMatrix(const std::array<double, 9>& params) {
+    std::array<double, 9 + 3 + 3> res;
+
+    ceres::AngleAxisToRotationMatrix(params.data(), res.data());
+    res[9] = params[3];
+    res[10] = params[4];
+    res[11] = params[5];
+    res[12] = params[6];
+    res[13] = params[7];
+    res[14] = params[8];
+    return res;
+  }
+  
+  static std::array<double, 9> Project(const std::array<double, 15>& parameters) {
+    std::array<double, 9> res;
+
+    Eigen::Matrix3d M = Eigen::Map<const Eigen::Matrix3d>(parameters.data());
+    auto svd = M.bdcSvd(Eigen::ComputeFullU | Eigen::ComputeFullV);
+    Eigen::Matrix3d U = svd.matrixU();
+    Eigen::Matrix3d V = svd.matrixV();
+
+    Eigen::Matrix3d R = U * Eigen::Vector3d(1, 1, (U * V.transpose()).determinant()).asDiagonal() * V.transpose();
+    ceres::RotationMatrixToAngleAxis(R.data(), res.data());
+    res[3] = parameters[9];
+    res[4] = parameters[10];
+    res[5] = parameters[11];
+    res[6] = parameters[12];
+    res[7] = parameters[13];
+    res[8] = parameters[14];
+    return res;
+  }
+
 };
 
 struct Landmark {

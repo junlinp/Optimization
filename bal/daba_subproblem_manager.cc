@@ -29,7 +29,25 @@ class ThreadPool {
   ThreadPool(size_t);
   template <class F, class... Args>
   auto enqueue(F&& f, Args&&... args)
-      -> std::future<typename std::result_of<F(Args...)>::type>;
+      -> std::future<std::result_of_t<F(Args...)>> {
+    using return_type = std::result_of_t<F(Args...)>;
+
+    auto task = std::make_shared<std::packaged_task<return_type()>>(
+        std::bind(std::forward<F>(f), std::forward<Args>(args)...));
+
+    std::future<return_type> res = task->get_future();
+    {
+      std::unique_lock<std::mutex> lock(queue_mutex);
+
+      // don't allow enqueueing after stopping the pool
+      if (stop)
+        throw std::runtime_error("enqueue on stopped ThreadPool");
+
+      tasks.emplace([task]() { (*task)(); });
+  }
+  condition.notify_one();
+  return res;
+      };
   ~ThreadPool();
 
  private:
@@ -63,28 +81,6 @@ inline ThreadPool::ThreadPool(size_t threads) : stop(false) {
         task();
       }
     });
-}
-
-// add new work item to the pool
-template <class F, class... Args>
-auto ThreadPool::enqueue(F&& f, Args&&... args)
-    -> std::future<typename std::result_of<F(Args...)>::type> {
-  using return_type = typename std::result_of<F(Args...)>::type;
-
-  auto task = std::make_shared<std::packaged_task<return_type()>>(
-      std::bind(std::forward<F>(f), std::forward<Args>(args)...));
-
-  std::future<return_type> res = task->get_future();
-  {
-    std::unique_lock<std::mutex> lock(queue_mutex);
-
-    // don't allow enqueueing after stopping the pool
-    if (stop) throw std::runtime_error("enqueue on stopped ThreadPool");
-
-    tasks.emplace([task]() { (*task)(); });
-  }
-  condition.notify_one();
-  return res;
 }
 
 // the destructor joins all threads
@@ -190,7 +186,7 @@ void DABASubProblemManager::Solve(Problem& problem) {
   }
 
   int iteration = 0;
-  int max_iteration = 512;
+  int max_iteration = 256;
   double function_tolerance = 1e-6;
   double last_error = std::numeric_limits<double>::max();
   double t = 0;
@@ -214,16 +210,23 @@ void DABASubProblemManager::Solve(Problem& problem) {
     profiler.StartProfile("Update y");
     for (auto& [camera_index, condition_parameters] :
          condition_camera_parameters_) {
-      auto& current_parameters = current_camera_parameters_.at(camera_index);
-      auto& previous_parameters = previous_camera_parameters_.at(camera_index);
-      auto& auxiliary_parameters =
-          auxiliary_camera_parameters_.at(camera_index);
-      for (int i = 0; i < 9; i++) {
-        condition_parameters[i] =
+      auto current_parameters = CameraParam::ConvertLieAlgrebaToRotationMatrix(
+          current_camera_parameters_.at(camera_index));
+      auto previous_parameters = CameraParam::ConvertLieAlgrebaToRotationMatrix(
+          previous_camera_parameters_.at(camera_index));
+      auto auxiliary_parameters =
+          CameraParam::ConvertLieAlgrebaToRotationMatrix(
+              auxiliary_camera_parameters_.at(camera_index));
+      
+      std::array<double, 15> condition_p;
+      for (int i = 0; i < 15; i++) {
+        condition_p[i] =
             current_parameters[i] +
             t / t_next * (auxiliary_parameters[i] - current_parameters[i]) +
             (t - 1) / t_next * (current_parameters[i] - previous_parameters[i]);
       }
+
+      condition_parameters = CameraParam::Project(condition_p);
       camera_parameters_[camera_index] = condition_parameters;
     }
 
@@ -232,6 +235,7 @@ void DABASubProblemManager::Solve(Problem& problem) {
       auto& current_parameters = current_point_parameters_.at(point_index);
       auto& previous_parameters = previous_point_parameters_.at(point_index);
       auto& auxiliary_parameters = auxiliary_point_parameters_.at(point_index);
+
       for (int i = 0; i < 3; i++) {
         condition_parameters[i] =
             current_parameters[i] +
@@ -245,15 +249,16 @@ void DABASubProblemManager::Solve(Problem& problem) {
     auto camera_functor = [&camera_cost_functions](int64_t c_i) {
       ceres::Solver::Summary summary;
       ceres::Solver::Options options;
-      options.max_num_iterations = 512;
+      options.max_num_iterations = 2;
       ceres::Solve(options, &(camera_cost_functions.at(c_i)), &summary);
     };
     auto point_functor = [&point_cost_functions](int64_t p_i) {
       ceres::Solver::Summary summary;
       ceres::Solver::Options options;
-      options.max_num_iterations = 512;
+      options.max_num_iterations = 2;
       ceres::Solve(options, &(point_cost_functions.at(p_i)), &summary);
     };
+
 
     profiler.StartProfile("Solve z=f(y)");
     {
@@ -303,7 +308,9 @@ void DABASubProblemManager::Solve(Problem& problem) {
       }
     }
     profiler.EndProfile("Compute norm(z - y)");
-    std::cout << iteration << " auxiliary_error : " << auxiliary_error << std::endl;
+    std::cout << iteration << " auxiliary_error : " << auxiliary_error
+              << " c - delta * normal_diff : " << c - delta * normal_diff
+              << std::endl;
     if (auxiliary_error <= c - delta * normal_diff) {
         profiler.StartProfile("x_next = z");
         for (auto& [camera_index, previous_parameters] : previous_camera_parameters_) {
@@ -362,10 +369,12 @@ void DABASubProblemManager::Solve(Problem& problem) {
         for (auto& [camera_index, previous_parameters] : previous_camera_parameters_) {
             previous_parameters = current_camera_parameters_[camera_index];
             current_camera_parameters_[camera_index] = camera_parameters_[camera_index];
+            auxiliary_camera_parameters_[camera_index] = camera_parameters_[camera_index];
         }
         for (auto& [point_index, previous_parameters] : previous_point_parameters_) {
             previous_parameters = current_point_parameters_[point_index];
             current_point_parameters_[point_index] = point_parameters_[point_index];
+            auxiliary_point_parameters_[point_index] = point_parameters_[point_index];
         }
         function_error = temp_error;
       }
@@ -378,7 +387,7 @@ void DABASubProblemManager::Solve(Problem& problem) {
               << std::endl;
 
     if (std::abs(function_error - last_error) / function_error < function_tolerance) {
-      std::cout << "Function tolerance reached.quit early." << std::endl;
+      std::cout << "Function tolerance reached." << std::abs(function_error - last_error) / function_error << "quit early." << std::endl;
       break;
     }
     last_error = function_error;

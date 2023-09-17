@@ -4,6 +4,7 @@
 #include "ceres/problem.h"
 #include "cost_function_auto.h"
 #include "evaluate.h"
+#include "problem.h"
 #include "gtest/gtest.h"
 
 double CostValueFromResidual(double* values) {
@@ -206,6 +207,21 @@ TEST(Surrogate_Function, partition_point_optimization) {
   std::cout << "new : " << x_under_new_x_camera_error << std::endl;
   std::cout << "pre : " << x_under_x_camera_error << std::endl;
   EXPECT_LE(x_under_new_x_camera_error, x_under_x_camera_error);
+}
+
+TEST(CameraProject, Convert) {
+  std::array<double, 9> camera = {0.0201406, -0.0481816,  -0.00528055,
+                      0.119713,  -0.0600754,  1.62656,
+                      412.015,   2.19135e-07, -4.22647e-13};
+
+  auto rotation_matrix = CameraParam::ConvertLieAlgrebaToRotationMatrix(camera);
+
+  auto convert_back = CameraParam::Project(rotation_matrix);
+
+
+  for(int i = 0; i < camera.size(); i++) {
+    EXPECT_NEAR(camera[i], convert_back[i], 1e-6);
+  }
 }
 // TEST(PLUS, JETD) {
 //   JETD<2> xy[2];
