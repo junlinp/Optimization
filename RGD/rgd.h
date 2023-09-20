@@ -21,7 +21,18 @@ template <class CostFunctionFunctor, class Manifold>
 bool LeastQuaresRiemannGredientDescent(
     CostFunctionFunctor &&costfunction_functor,
     Manifold &&manifold_init_value) {
+  typename CostFunctionFunctor::ResidualVector residuals;
+  typename CostFunctionFunctor::JacobianMatrix jacobians;
+  costfunction_functor.Evaluate(&manifold_init_value, &residuals, &jacobians);
+  
+  double least_quares_error = 0.5 * residuals.squaredNorm();
+  Eigen::VectorXd general_gradient = residuals.transpose() * jacobians;
 
-    }
+  typename Manifold::TangentSpaceVector tangent_gradient =
+      Manifold::Project(manifold_init_value, general_gradient);
+
+  // linear search
+  // return Step
+}
 
 #endif //  RGB_RGD_H_
