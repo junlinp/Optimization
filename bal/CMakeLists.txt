@@ -10,7 +10,7 @@ target_link_libraries(${PROJECT_NAME}_lib Eigen3::Eigen ceres Graph)
 
 add_executable(${PROJECT_NAME} bal_main.cc )
 
-target_link_libraries(${PROJECT_NAME} PRIVATE Eigen3::Eigen ceres ${PROJECT_NAME}_lib)
+target_link_libraries(${PROJECT_NAME} PRIVATE Eigen3::Eigen ceres ${PROJECT_NAME}_lib rgd_lib)
 
 find_package(GTest REQUIRED)
 add_executable(bal_unittest bal_test.cc)

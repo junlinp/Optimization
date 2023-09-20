@@ -54,7 +54,7 @@ class EuclideanManifold {
   AmbientSpaceVector vector_;
 };
 
-class RotationMatrixManifold : {
+class RotationMatrixManifold {
 public:
   constexpr static int AmbientSpaceSize = 9;
   constexpr static int TangentSpaceSize = 9;
