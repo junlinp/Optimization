@@ -9,7 +9,7 @@ auto New_X(const std::vector<SO3Manifold::Vector>& x, const std::vector<SO3Manif
       res.push_back(SO3Manifold::Retraction(x[i], steps[i]));
     }
     return res;
-};
+}
 
 auto NewStep(const std::vector<SO3Manifold::TangentVector> &directions,
              double step_size) {
@@ -18,7 +18,7 @@ auto NewStep(const std::vector<SO3Manifold::TangentVector> &directions,
     res.push_back(step_size * tangent_vector);
   }
   return res;
-};
+}
 
 double BackTracing(const SO3CostFunctionInterface& cost_function, const std::vector<SO3Manifold::Vector>& x ,
 const std::vector<SO3Manifold::TangentVector>& directions

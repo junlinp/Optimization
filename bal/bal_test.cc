@@ -4,7 +4,13 @@
 #include "ceres/problem.h"
 #include "cost_function_auto.h"
 #include "evaluate.h"
+#include "problem.h"
 #include "gtest/gtest.h"
+
+double CostValueFromResidual(double* values) {
+  return 0.5 * (values[0] * values[0] + values[1] * values[1] + values[2] * values[2]);
+}
+
 TEST(Project_Function, simple_case) {
   // clang-format off
   double camera[9] = {
@@ -111,6 +117,112 @@ TEST(Surrogate_Function, simple_case) {
               );
 }
 
+TEST(Surrogate_Function, partition_camera_optimization) {
+  // clang-format off
+  double camera[9] = {
+      0.0157415, -0.0127909, -0.00440085,
+     -0.0340938,  -0.107514, 1.12022,
+      399.752,    -3.17706e-07, 5.88205e-13,
+  };
+  // clang-format on
+  double point[3] = {-0.612, 0.571759, -1.84708};
+
+  double condition_camera[9] = {
+      0.0157415, -0.0127909, -0.00440085,  -0.0340938,  -0.107514,
+      1.12022,   399.752,    -3.17706e-07, 5.88205e-13,
+  };
+  // clang-format on
+  double condition_point[3] = {-0.612, 0.571759, -1.84708};
+  // double uv[2] = {-332.65, 262.09};
+  double uv[2] = {332.65, -262.09};
+
+  CameraSurrogateCostFunction camera_surrogate_cost_function(
+      condition_camera, condition_point, uv[0], uv[1]);
+  double camera_residual[3];
+
+  camera_surrogate_cost_function(camera, camera_residual);
+  
+  double x_under_x_camera_error = CostValueFromResidual(camera_residual);
+
+  ceres::Problem problem;
+  problem.AddResidualBlock(
+      new ceres::AutoDiffCostFunction<CameraSurrogateCostFunction, 3, 9>(
+          new CameraSurrogateCostFunction(condition_camera, condition_point,
+                                          uv[0], uv[1])),
+      nullptr, camera);
+  ceres::Solver::Options options;
+  ceres::Solver::Summary summary;
+  ceres::Solve(options, &problem, &summary);
+  std::cout << summary.BriefReport() << std::endl;
+  camera_surrogate_cost_function(camera, camera_residual);
+
+  CameraSurrogateCostFunction camera_surrogate_cost_function_new_x(
+      camera, condition_point, uv[0], uv[1]);
+
+  camera_surrogate_cost_function_new_x(camera, camera_residual);
+  double x_under_new_x_camera_error = CostValueFromResidual(camera_residual);
+
+  EXPECT_LE(x_under_new_x_camera_error, x_under_x_camera_error);
+}
+
+TEST(Surrogate_Function, partition_point_optimization) {
+  // clang-format off
+  double camera[9] = {
+      0.0201406,-0.0481816,-0.00528055,0.119713,-0.0600754,1.62656,412.015,2.19135e-07,-4.22647e-13
+  };
+  // clang-format on
+  double point[3] = {0.991267,-0.0529383,-3.60759};
+
+  double condition_camera[9] = {
+      0.0201406,-0.0481816,-0.00528055,0.119713,-0.0600754,1.62656,412.015,2.19135e-07,-4.22647e-13
+  };
+  // clang-format on
+  double condition_point[3] = {0.991267,-0.0529383,-3.60759};
+  // double uv[2] = {-332.65, 262.09};
+  double uv[2] = {-277.65, 10.07};
+
+  LandmarkSurrogatecostFunction landmark_surrogate_cost_function(
+      condition_camera, condition_point, uv[0], uv[1]);
+
+  ceres::Problem problem;
+  problem.AddResidualBlock(
+      new ceres::AutoDiffCostFunction<LandmarkSurrogatecostFunction, 3, 9>(
+          new LandmarkSurrogatecostFunction(condition_camera, condition_point,
+                                            uv[0], uv[1])),
+      nullptr, point);
+  ceres::Solver::Options options;
+  ceres::Solver::Summary summary;
+  ceres::Solve(options, &problem, &summary);
+  std::cout << summary.BriefReport() << std::endl;
+
+  double point_residual[3];
+  landmark_surrogate_cost_function(point, point_residual);
+  double x_under_x_camera_error = CostValueFromResidual(point_residual);
+
+  LandmarkSurrogatecostFunction landmark_new_cost(
+      condition_camera, point, uv[0], uv[1]);
+
+  landmark_new_cost(point, point_residual);
+  double x_under_new_x_camera_error = CostValueFromResidual(point_residual);
+  std::cout << "new : " << x_under_new_x_camera_error << std::endl;
+  std::cout << "pre : " << x_under_x_camera_error << std::endl;
+  EXPECT_LE(x_under_new_x_camera_error, x_under_x_camera_error);
+}
+
+TEST(CameraProject, Convert) {
+  std::array<double, 9> camera = {0.0201406, -0.0481816,  -0.00528055,
+                      0.119713,  -0.0600754,  1.62656,
+                      412.015,   2.19135e-07, -4.22647e-13};
+
+  auto rotation_matrix = CameraParam::ConvertLieAlgrebaToRotationMatrix(camera);
+
+  auto convert_back = CameraParam::Project(rotation_matrix);
+
+
+  for(int i = 0; i < camera.size(); i++) {
+    EXPECT_NEAR(camera[i], convert_back[i], 1e-6);
+  }
+}
 // TEST(PLUS, JETD) {
 //   JETD<2> xy[2];
 //   xy[0] = JETD<2>(1.0, 0);

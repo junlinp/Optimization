@@ -153,6 +153,19 @@ public:
 
   template <class T>
   bool operator()(const T *landmark_position, T *residual) const {
+    // std::cout << "condition_camera_parameters ptr : "
+    //           << condition_camera_parameters_ << std::endl;
+    // for (int i = 0; i < 9; i++) {
+    //   std::cout << condition_camera_parameters_[i] << " ";
+    // }
+    // std::cout << std::endl;
+    // std::cout << "condition_landmark_parameters ptr : " << condition_landmark_parameters_ << std::endl;
+    // for (int i = 0; i < 3; i++) {
+    //   std::cout << condition_landmark_parameters_[i] << " ";
+    // }
+    // std::cout << std::endl;
+    // std::cout << "u : " << u_ << ", v : " << v_ << std::endl;
+
     double condition_lambda = MinimumDepth(
         condition_camera_parameters_, condition_landmark_parameters_, u_, v_);
     double g[3];
@@ -183,6 +196,13 @@ struct RayCostFunction {
     Eigen::Map<Tvector3d> residual_map(residual);
     residual_map = pij - lambda * (residual_map + translation);
     return true;
+  }
+
+  double EvaluateCost(const double* camera_parameter,const double* landmark_parameter) const {
+    double res[3];
+
+    (*this)(camera_parameter, landmark_parameter, res);
+    return 0.5 * (res[0] * res[0] + res[1] * res[1] + res[2] * res[2]);
   }
 };
 

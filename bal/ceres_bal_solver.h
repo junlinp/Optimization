@@ -8,4 +8,8 @@ public:
     void Solve(Problem& problem) override;
 };
 
+class CeresRayProblemSolver : public ProblemSolver {
+public:
+    void Solve(Problem& problem) override;
+};
 #endif // CERES_BAL_SOLVER_H_
