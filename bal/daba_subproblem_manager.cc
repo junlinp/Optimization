@@ -47,7 +47,7 @@ class ThreadPool {
   }
   condition.notify_one();
   return res;
-      };
+  }
   ~ThreadPool();
 
  private:
@@ -153,6 +153,9 @@ void DABASubProblemManager::Solve(Problem& problem) {
   std::map<int64_t, ceres::Problem> camera_cost_functions;
   std::map<int64_t, ceres::Problem> point_cost_functions;
   std::vector<std::function<double()>> ray_cost_functions;
+  
+  std::map<int64_t, GradientDescentManager<9>> camera_gradient_descent;
+  std::map<int64_t, GradientDescentManager<3>> point_gradient_descent;
 
   for (auto [index_pair, uv] : problem.observations_) {
     int64_t camera_index = index_pair.first;
@@ -173,8 +176,11 @@ void DABASubProblemManager::Solve(Problem& problem) {
 
     camera_cost_functions[camera_index].AddResidualBlock(
         camera_costfunction, nullptr, camera_parameters_[camera_index].data());
+    camera_gradient_descent[camera_index].Append(camera_costfunction);
+      
     point_cost_functions[landmark_index].AddResidualBlock(
         point_costfunction, nullptr, point_parameters_[landmark_index].data());
+    point_gradient_descent[landmark_index].Append(point_costfunction);
 
     ray_cost_functions.push_back(
         [uv = uv, this, camera_index, landmark_index]() {
@@ -246,17 +252,24 @@ void DABASubProblemManager::Solve(Problem& problem) {
     }
     profiler.EndProfile("Update y");
 
-    auto camera_functor = [&camera_cost_functions](int64_t c_i) {
-      ceres::Solver::Summary summary;
-      ceres::Solver::Options options;
-      options.max_num_iterations = 2;
-      ceres::Solve(options, &(camera_cost_functions.at(c_i)), &summary);
+    auto camera_functor = [&camera_cost_functions, &camera_gradient_descent, this](int64_t c_i) {
+      // ceres::Solver::Summary summary;
+      // ceres::Solver::Options options;
+      // options.max_num_iterations = 5;
+      // ceres::Solve(options, &(camera_cost_functions.at(c_i)), &summary);
+
+      auto& s = camera_gradient_descent.at(c_i);
+      s.SetParameters(camera_parameters_.at(c_i).data());
+      s.Step();
     };
-    auto point_functor = [&point_cost_functions](int64_t p_i) {
-      ceres::Solver::Summary summary;
-      ceres::Solver::Options options;
-      options.max_num_iterations = 2;
-      ceres::Solve(options, &(point_cost_functions.at(p_i)), &summary);
+    auto point_functor = [&point_cost_functions, &point_gradient_descent, this](int64_t p_i) {
+      // ceres::Solver::Summary summary;
+      // ceres::Solver::Options options;
+      // options.max_num_iterations = 2;
+      // ceres::Solve(options, &(point_cost_functions.at(p_i)), &summary);
+      auto s = point_gradient_descent.at(p_i);
+      s.SetParameters(point_parameters_.at(p_i).data());
+      s.Step();
     };
 
 

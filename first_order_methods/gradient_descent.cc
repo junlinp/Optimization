@@ -28,8 +28,8 @@ Eigen::VectorXd  NesterovGradientDescnet(std::shared_ptr<FirstOracle> function, 
     Eigen::VectorXd z_plus = y - 1.0 / L * J;
     y = z_plus + beta * (z_plus - z);
     z = z_plus;
-    }
-    return y;
+  }
+  return y;
 }
 
 Eigen::VectorXd  NesterovGradientDescnet2(std::shared_ptr<FirstOracle> function, const Eigen::VectorXd& x0, double L) {
