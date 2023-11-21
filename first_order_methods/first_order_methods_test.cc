@@ -43,26 +43,37 @@ class FirstOrderTest : public testing::Test {
       std::uniform_real_distribution<double> unif_dis;
 };
 
-TEST_F(FirstOrderTest, gradient_decent) {
+TEST_F(FirstOrderTest, gradient_decent_with_L) {
     Eigen::VectorXd x_opt = GradientDescnet(function_, x0_,  L_);
 
     std::cout << "Initial fval : " << function_->fval(x0_) << std::endl;
     std::cout << "Final fval : " << function_->fval(x_opt) << std::endl;
 }
 
-TEST_F(FirstOrderTest, nesterov_gradient_decent) {
-    Eigen::VectorXd x_opt = NesterovGradientDescnet(function_, x0_,  L_);
+TEST_F(FirstOrderTest, gradient_decent) {
+    Eigen::VectorXd x_opt = GradientDescnet(function_, x0_);
+    std::cout << "Initial fval : " << function_->fval(x0_) << std::endl;
+    std::cout << "Final fval : " << function_->fval(x_opt) << std::endl;
+}
 
+TEST_F(FirstOrderTest, nesterov_gradient_decent_with_L) {
+    Eigen::VectorXd x_opt = NesterovGradientDescnet(function_, x0_,  L_);
+    std::cout << "Initial fval : " << function_->fval(x0_) << std::endl;
+    std::cout << "Final fval : " << function_->fval(x_opt) << std::endl;
+}
+
+TEST_F(FirstOrderTest, nesterov_gradient_decent) {
+    Eigen::VectorXd x_opt = NesterovGradientDescnet(function_, x0_);
     std::cout << "Initial fval : " << function_->fval(x0_) << std::endl;
     std::cout << "Final fval : " << function_->fval(x_opt) << std::endl;
 }
 
 TEST_F(FirstOrderTest, nesterov_gradient_decent2) {
     Eigen::VectorXd x_opt = NesterovGradientDescnet2(function_, x0_,  L_);
-
     std::cout << "Initial fval : " << function_->fval(x0_) << std::endl;
     std::cout << "Final fval : " << function_->fval(x_opt) << std::endl;
 }
+
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
