@@ -1,5 +1,5 @@
 #include "gradient_descent.h"
-
+#include "memory"
 Eigen::VectorXd GradientDescnet(std::shared_ptr<FirstOracle> function, const Eigen::VectorXd& x0, double L) {
 
     Eigen::VectorXd y = x0;
