@@ -74,3 +74,10 @@ cc_library(
 		"@com_libcgraph//:cgraph",
 	]
 )
+cc_binary(
+	name ="cgraph_test",
+	srcs = ["cgraph_test.cc"],
+	deps = [
+		"@com_libcgraph//:cgraph",
+	]
+)
