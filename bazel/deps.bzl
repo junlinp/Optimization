@@ -35,3 +35,10 @@ def deps():
 		commit = "a762baa27529e50fc41a37824033245a6f0e9392",
 		remote ="https://github.com/junlinp/ceres-solver.git"
 	)
+    maybe(
+        new_git_repository,
+        name="com_libcgraph",
+        commit="b499e5e79326b0bde09b268defcaff8cef733a90",
+        remote="https://github.com/junlinp/CGraph.git",
+        build_file="//third_party:cgraph_build.BUILD"
+    )

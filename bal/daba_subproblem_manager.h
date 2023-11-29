@@ -1,6 +1,6 @@
 #ifndef BAL_DABA_SUBPROBLEM_MANAGER_H_
 #define  BAL_DABA_SUBPROBLEM_MANAGER_H_
-#include "bal_solver.h"
+#include "bal/bal_solver.h"
 
 using CameraParameters = std::array<double, 9>;
 using PointParameters = std::array<double, 3>;
