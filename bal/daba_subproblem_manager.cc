@@ -14,6 +14,7 @@
 #include <thread>
 
 #include "bal/cost_function_auto.h"
+#include "src/CGraph.h"
 
 namespace {
 template <class T, int DIM>
@@ -130,6 +131,126 @@ class Profiler {
   std::map<std::string, int64_t> sample_total_time_;
   std::map<std::string, int64_t> sample_total_count_;
 };
+class HyperParameters : public CGraph::GParam {
+  public:
+    void reset() {
+      iteration = 0;
+      function_tolerance = 1e-6;
+      last_error = std::numeric_limits<double>::max();
+      t = 0;
+      c = 0.0;
+      delta = 1e-5;
+      q = 1.0;
+      eta = 0.8;
+    }
+
+    int iteration = 0;
+    double function_tolerance = 1e-6;
+    double last_error = std::numeric_limits<double>::max();
+    double t = 0;
+    double c = 0.0;
+    double delta = 1e-5;
+    double q = 1.0;
+    double eta = 0.8;
+};
+
+class HyperParametersNode : public CGraph::GNode {
+public:
+    CStatus init () override {
+        auto status = this->createGParam<HyperParameters>("hyper_parameters");
+        return status;
+    }
+
+    CStatus run () override {
+        HyperParameters* hyper_parameters = this->getGParam<HyperParameters>("hyper_parameters");
+        if (nullptr == hyper_parameters)
+        {
+          return CStatus(-1, "get a nullptr for hyper_parameters");
+        }
+        {
+          auto t = hyper_parameters->t;
+          CGRAPH_PARAM_WRITE_CODE_BLOCK(hyper_parameters)
+          hyper_parameters->iteration++;
+          hyper_parameters->t = (std::sqrt(4 * t * t + 1) + 1) * 0.5;
+        }
+        return CStatus();
+    }
+};
+
+class CameraParameterUpdateNode : public CGraph::GNode {
+public:
+  CStatus run() override {
+    auto current_parameters = CameraParam::ConvertLieAlgrebaToRotationMatrix(
+        problem_manager_ptr_->current_camera_parameters_.at(camera_index_));
+    auto previous_parameters = CameraParam::ConvertLieAlgrebaToRotationMatrix(
+        problem_manager_ptr_->previous_camera_parameters_.at(camera_index_));
+    auto auxiliary_parameters =
+        CameraParam::ConvertLieAlgrebaToRotationMatrix(
+            problem_manager_ptr_->auxiliary_camera_parameters_.at(camera_index_));
+    auto condition_parameters = problem_manager_ptr_->condition_camera_parameters_.at(camera_index_);
+    double t = 0.0;
+    HyperParameters *hyper_parameters = this->getGParam<HyperParameters>("hyper_parameters");
+    {
+      CGRAPH_PARAM_READ_CODE_BLOCK(hyper_parameters);
+      t = hyper_parameters->t;
+      }
+      double t_next = (std::sqrt(4 * t * t + 1) + 1) * 0.5;
+      std::array<double, 15> condition_p;
+      for (int i = 0; i < 15; i++)
+      {
+        condition_p[i] =
+            current_parameters[i] +
+            t / t_next * (auxiliary_parameters[i] - current_parameters[i]) +
+            (t - 1) / t_next * (current_parameters[i] - previous_parameters[i]);
+      }
+
+      condition_parameters = CameraParam::Project(condition_p);
+      problem_manager_ptr_->camera_parameters_[camera_index_] = condition_parameters;
+      return CStatus();
+  }
+  
+  void SetManagerAndIndex(DABASubProblemManager* ptr, int64_t camera_index) {
+    problem_manager_ptr_ = ptr;
+    camera_index_ = camera_index;
+  }
+  private:
+  DABASubProblemManager* problem_manager_ptr_;
+  int64_t camera_index_;
+};
+class PointParameterUpdateNode : public CGraph::GNode {
+  public:
+  CStatus run() override {
+      auto& current_parameters =problem_manager_ptr_ ->current_point_parameters_.at(point_index_);
+      auto& previous_parameters =problem_manager_ptr_-> previous_point_parameters_.at(point_index_);
+      auto& auxiliary_parameters =problem_manager_ptr_-> auxiliary_point_parameters_.at(point_index_);
+      auto& condition_parameters =problem_manager_ptr_-> condition_point_parameters_.at(point_index_);
+      double t = 0.0;
+      HyperParameters *hyper_parameters = this->getGParam<HyperParameters>("hyper_parameters");
+      {
+        CGRAPH_PARAM_READ_CODE_BLOCK(hyper_parameters);
+        t = hyper_parameters->t;
+      }
+      double t_next = (std::sqrt(4 * t * t + 1) + 1) * 0.5;
+
+      for (int i = 0; i < 3; i++) {
+        condition_parameters[i] =
+            current_parameters[i] +
+            t / t_next * (auxiliary_parameters[i] - current_parameters[i]) +
+            (t - 1) / t_next * (current_parameters[i] - previous_parameters[i]);
+      }
+      problem_manager_ptr_->point_parameters_[point_index_] = condition_parameters;
+        return CStatus();
+  }
+
+  void SetManagerAndIndex(DABASubProblemManager* ptr, int64_t point_index) {
+    problem_manager_ptr_ = ptr;
+    point_index_ = point_index;
+  }
+
+  private:
+  DABASubProblemManager* problem_manager_ptr_;
+  int64_t point_index_;
+};
 
 }  // namespace
 
@@ -200,52 +321,62 @@ void DABASubProblemManager::Solve(Problem& problem) {
     }
   }
   Profiler profiler;
-  while (iteration++ < max_iteration) {
-    double function_error = 0.0;
-    double t_next = (std::sqrt(4 * t * t + 1) + 1) * 0.5;
-    if (iteration == 1) {
-        t_next = 1.0;
-    }
+
+  CGraph::GPipelinePtr pipeline = CGraph::GPipelineFactory::create();
+  CGraph::UThreadPoolConfig config;
+  config.default_thread_size_ = std::thread::hardware_concurrency();
+  config.secondary_thread_size_ = 8; // 需要执行的线程数
+  pipeline->setUniqueThreadPoolConfig(config);
+  
+  // repeat Solve
+  CGraph::GClusterPtr solve_cluster = nullptr;
+  CGraph::GRegionPtr compute_region = nullptr;
+
+   
+  //pipeline->registerGElement<CGraph::GCluster>(&solve_cluster, {}, "SolveCluster", max_iteration);
+  CGraph::GElementPtr hyper_parameters_update = pipeline->createGNode<HyperParametersNode>(CGraph::GNodeInfo({}, "hyper_parameters_node", 1));
+  //pipeline->registerGElement<CGraph::GFunction>(&hyper_parameters_update);
+
+  //hyper_parameters_update->setFunction(CGraph::CFunctionType::INIT, [hyper_parameters_update](){
+    //assert(hyper_parameters_update != nullptr);
+    //hyper_parameters_update->createGParam<int>("iteration");
+    //return CStatus();
+  //});
+
+  //while (iteration++ < max_iteration) {
+    //double function_error = 0.0;
+    //double t_next = (std::sqrt(4 * t * t + 1) + 1) * 0.5;
+    //if (iteration == 1) {
+        //t_next = 1.0;
+    //}
 
     profiler.StartProfile("Update y");
-    for (auto& [camera_index, condition_parameters] :
-         condition_camera_parameters_) {
-      auto current_parameters = CameraParam::ConvertLieAlgrebaToRotationMatrix(
-          current_camera_parameters_.at(camera_index));
-      auto previous_parameters = CameraParam::ConvertLieAlgrebaToRotationMatrix(
-          previous_camera_parameters_.at(camera_index));
-      auto auxiliary_parameters =
-          CameraParam::ConvertLieAlgrebaToRotationMatrix(
-              auxiliary_camera_parameters_.at(camera_index));
-      
-      std::array<double, 15> condition_p;
-      for (int i = 0; i < 15; i++) {
-        condition_p[i] =
-            current_parameters[i] +
-            t / t_next * (auxiliary_parameters[i] - current_parameters[i]) +
-            (t - 1) / t_next * (current_parameters[i] - previous_parameters[i]);
-      }
+    std::vector<CGraph::GElementPtr> update_ptr;
 
-      condition_parameters = CameraParam::Project(condition_p);
-      camera_parameters_[camera_index] = condition_parameters;
+    for (auto &[camera_index, condition_parameters] :
+         condition_camera_parameters_)
+    {
+      auto node_ptr = pipeline->createGNode<CameraParameterUpdateNode>(CGraph::GNodeInfo({}, 1));
+      static_cast<CameraParameterUpdateNode*>(node_ptr)->SetManagerAndIndex(this, camera_index);
+      update_ptr.push_back(node_ptr);
     }
 
     for (auto& [point_index, condition_parameters] :
          condition_point_parameters_) {
-      auto& current_parameters = current_point_parameters_.at(point_index);
-      auto& previous_parameters = previous_point_parameters_.at(point_index);
-      auto& auxiliary_parameters = auxiliary_point_parameters_.at(point_index);
-
-      for (int i = 0; i < 3; i++) {
-        condition_parameters[i] =
-            current_parameters[i] +
-            t / t_next * (auxiliary_parameters[i] - current_parameters[i]) +
-            (t - 1) / t_next * (current_parameters[i] - previous_parameters[i]);
-      }
-      point_parameters_[point_index] = condition_parameters;
+      auto node_ptr = pipeline->createGNode<PointParameterUpdateNode>(CGraph::GNodeInfo({}, 1));
+      static_cast<PointParameterUpdateNode*>(node_ptr)->SetManagerAndIndex(this, point_index);
+      update_ptr.push_back(node_ptr);
     }
-    profiler.EndProfile("Update y");
 
+    CGraph::GGroupPtr parameters_update = pipeline->createGGroup<CGraph::GRegion>(update_ptr);
+    //pipeline->registerGGroup(&parameters_update, {hyper_parameters_update}, "", 1);
+
+    CGraph::GElementPtr solve_step = pipeline->createGGroup<CGraph::GCluster>({parameters_update}, {}, "solve", max_iteration);
+    pipeline->registerGGroup(&solve_step);
+
+    pipeline->process();
+    profiler.EndProfile("Update y");
+    /*
     auto camera_functor = [&camera_cost_functions](int64_t c_i) {
       ceres::Solver::Summary summary;
       ceres::Solver::Options options;
@@ -261,17 +392,31 @@ void DABASubProblemManager::Solve(Problem& problem) {
 
 
     profiler.StartProfile("Solve z=f(y)");
+
     {
       ThreadPool thread_pool(std::thread::hardware_concurrency());
-
       for (auto& [camera_index, problem] : camera_cost_functions) {
-        thread_pool.enqueue(camera_functor, camera_index);
+        CGraph::GFunctionPtr function_node = nullptr;
+        pipeline->registerGElement<CGraph::GFunction>(&function_node, {});
+        //thread_pool.enqueue(camera_functor, camera_index);
+        function_node->setFunction(CGraph::CFunctionType::RUN, [&camera_functor, camera_index]() {
+          camera_functor(camera_index);
+          return CStatus();
+        });
       }
 
       for (auto& [point_index, problem] : point_cost_functions) {
-        thread_pool.enqueue(point_functor, point_index);
+        CGraph::GFunctionPtr function_node = nullptr;
+        pipeline->registerGElement<CGraph::GFunction>(&function_node, {});
+        //thread_pool.enqueue(point_functor, point_index);
+        function_node->setFunction(CGraph::CFunctionType::RUN, [&point_functor, point_index]() {
+          point_functor(point_index);
+          return CStatus();
+        });
       }
     }
+    pipeline->process();
+    CGraph::GPipelineFactory::remove(pipeline);
     profiler.EndProfile("Solve z=f(y)");
 
     double auxiliary_error = 0.0;
@@ -392,6 +537,7 @@ void DABASubProblemManager::Solve(Problem& problem) {
     }
     last_error = function_error;
   }
+  */
 
   for (auto pair : current_camera_parameters_) {
     std::copy(pair.second.begin(), pair.second.end(),

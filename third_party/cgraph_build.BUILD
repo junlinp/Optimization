@@ -7,5 +7,6 @@ hdrs = glob([
         "src/**/*.inl",
      ]),
 copts= ["-std=c++17"],
+defines=["_ENABLE_LIKELY_"],
 visibility = ["//visibility:public"],
 )

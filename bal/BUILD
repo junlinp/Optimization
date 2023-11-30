@@ -81,3 +81,25 @@ cc_binary(
 		"@com_libcgraph//:cgraph",
 	]
 )
+
+cc_library(
+	name = "evaluate",
+	srcs = ["evaluate.cc"],
+	hdrs = [
+		"evaluate.h",
+	],
+	deps = [
+		"@com_gitlab_libeigen_eigen//:eigen",
+		"problem",
+	]
+)
+
+cc_binary(
+	name = "bal_main",
+	srcs = ["bal_main.cc"],
+	deps = [
+		"daba_subproblem_manager",
+		"load_problem",
+		"ceres_bal_solver",
+	]
+)

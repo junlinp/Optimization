@@ -2,8 +2,6 @@
 #include "bal/bal_solver.h"
 #include "load_problem.h"
 #include "iostream"
-#include "evaluate.h"
-#include "../JET.h"
 
 #include <chrono>
 #include "ceres_bal_solver.h"

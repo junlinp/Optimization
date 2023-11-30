@@ -11,7 +11,7 @@ class DABASubProblemManager : public ProblemSolver {
   public:
   void Solve(Problem& problem) override;
 
- private:
+ public:
   void SetOpmizetionVariable(
       const std::map<int64_t, CameraParameters>& camera_parameters,
       const std::map<int64_t, PointParameters>& point_parameters);
@@ -29,7 +29,8 @@ class DABASubProblemManager : public ProblemSolver {
   std::map<int64_t, CameraParameters> auxiliary_camera_parameters_;
   std::map<int64_t, PointParameters> auxiliary_point_parameters_;
 
-
+  friend class CameraParameterUpdateNode;
+  friend class PointParameterUpdateNode;
 };
 
 #endif  // BAL_DABA_SUBPROBLEM_MANAGER_H_
