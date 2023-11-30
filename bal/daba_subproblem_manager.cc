@@ -368,13 +368,18 @@ void DABASubProblemManager::Solve(Problem& problem) {
       update_ptr.push_back(node_ptr);
     }
 
-    CGraph::GGroupPtr parameters_update = pipeline->createGGroup<CGraph::GRegion>(update_ptr);
+    CGraph::GElementPtr parameters_update = pipeline->createGGroup<CGraph::GRegion>(update_ptr);
+    assert(parameters_update != nullptr);
     //pipeline->registerGGroup(&parameters_update, {hyper_parameters_update}, "", 1);
 
-    CGraph::GElementPtr solve_step = pipeline->createGGroup<CGraph::GCluster>({parameters_update}, {}, "solve", max_iteration);
-    pipeline->registerGGroup(&solve_step);
-
+    //CGraph::GElementPtr solve_step = pipeline->createGGroup<CGraph::GCluster>({hyper_parameters_update, parameters_update});
+    //assert(solve_step != nullptr);
+    //pipeline->registerGElement<CGraph::GCluster>(&solve_step, {}, "solve_step", 1);
+    pipeline->registerGElement<CGraph::GNode>(&hyper_parameters_update, {}, "h", 1);
+    pipeline->registerGElement<CGraph::GRegion>(&(parameters_update), {hyper_parameters_update}, "p", 1);
+    std::cout << "process start" << std::endl;
     pipeline->process();
+    std::cout << "process done" << std::endl;
     profiler.EndProfile("Update y");
     /*
     auto camera_functor = [&camera_cost_functions](int64_t c_i) {
