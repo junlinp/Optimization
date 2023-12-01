@@ -168,11 +168,12 @@ public:
           return CStatus(-1, "get a nullptr for hyper_parameters");
         }
         {
-          auto t = hyper_parameters->t;
           CGRAPH_PARAM_WRITE_CODE_BLOCK(hyper_parameters)
+          auto t = hyper_parameters->t;
           hyper_parameters->iteration++;
           hyper_parameters->t = (std::sqrt(4 * t * t + 1) + 1) * 0.5;
         }
+        std::cout << "run HyperParametersNode" << std::endl;
         return CStatus();
     }
 };
@@ -203,9 +204,9 @@ public:
             t / t_next * (auxiliary_parameters[i] - current_parameters[i]) +
             (t - 1) / t_next * (current_parameters[i] - previous_parameters[i]);
       }
-
       condition_parameters = CameraParam::Project(condition_p);
       problem_manager_ptr_->camera_parameters_[camera_index_] = condition_parameters;
+      std::cout << "Run CameraParameterUpdateNode[" << camera_index_ << "]" << std::endl;
       return CStatus();
   }
   
@@ -323,10 +324,6 @@ void DABASubProblemManager::Solve(Problem& problem) {
   Profiler profiler;
 
   CGraph::GPipelinePtr pipeline = CGraph::GPipelineFactory::create();
-  CGraph::UThreadPoolConfig config;
-  config.default_thread_size_ = std::thread::hardware_concurrency();
-  config.secondary_thread_size_ = 8; // 需要执行的线程数
-  pipeline->setUniqueThreadPoolConfig(config);
   
   // repeat Solve
   CGraph::GClusterPtr solve_cluster = nullptr;
@@ -356,26 +353,28 @@ void DABASubProblemManager::Solve(Problem& problem) {
     for (auto &[camera_index, condition_parameters] :
          condition_camera_parameters_)
     {
-      auto node_ptr = pipeline->createGNode<CameraParameterUpdateNode>(CGraph::GNodeInfo({}, 1));
+      auto node_ptr = pipeline->createGNode<CameraParameterUpdateNode>(
+          CGraph::GNodeInfo({}, {}, 1));
       static_cast<CameraParameterUpdateNode*>(node_ptr)->SetManagerAndIndex(this, camera_index);
       update_ptr.push_back(node_ptr);
     }
 
     for (auto& [point_index, condition_parameters] :
          condition_point_parameters_) {
-      auto node_ptr = pipeline->createGNode<PointParameterUpdateNode>(CGraph::GNodeInfo({}, 1));
+      auto node_ptr = pipeline->createGNode<PointParameterUpdateNode>(
+          CGraph::GNodeInfo({}, {}, 1));
       static_cast<PointParameterUpdateNode*>(node_ptr)->SetManagerAndIndex(this, point_index);
       update_ptr.push_back(node_ptr);
     }
 
-    CGraph::GElementPtr parameters_update = pipeline->createGGroup<CGraph::GRegion>(update_ptr);
+    CGraph::GElementPtr parameters_update = pipeline->createGGroup<CGraph::GRegion>(update_ptr, {});
     assert(parameters_update != nullptr);
     //pipeline->registerGGroup(&parameters_update, {hyper_parameters_update}, "", 1);
 
     //CGraph::GElementPtr solve_step = pipeline->createGGroup<CGraph::GCluster>({hyper_parameters_update, parameters_update});
     //assert(solve_step != nullptr);
     //pipeline->registerGElement<CGraph::GCluster>(&solve_step, {}, "solve_step", 1);
-    pipeline->registerGElement<CGraph::GNode>(&hyper_parameters_update, {}, "h", 1);
+    pipeline->registerGElement<HyperParametersNode>(&hyper_parameters_update, {}, "h", 1);
     pipeline->registerGElement<CGraph::GRegion>(&(parameters_update), {hyper_parameters_update}, "p", 1);
     std::cout << "process start" << std::endl;
     pipeline->process();
