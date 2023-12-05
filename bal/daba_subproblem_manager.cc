@@ -206,7 +206,9 @@ public:
       }
       condition_parameters = CameraParam::Project(condition_p);
       problem_manager_ptr_->camera_parameters_[camera_index_] = condition_parameters;
-      std::cout << "Run CameraParameterUpdateNode[" << camera_index_ << "]" << std::endl;
+      if (camera_index_ == 0) {
+        std::cout << "Run CameraParameterUpdateNode[" << camera_index_ << "]" << std::endl;
+      }
       return CStatus();
   }
   
@@ -253,8 +255,24 @@ class PointParameterUpdateNode : public CGraph::GNode {
   int64_t point_index_;
 };
 
+class CameraSolverNode : public CGraph::GNode {
+
+};
+class PointSolverNode : public CGraph::GNode {
+
+};
+
 }  // namespace
 
+// update y for nest by x
+// solve z = f(y)
+// evalute f(z)
+// compute norm(z - y)
+// if (auxiliary_error <= c - delta * normal_diff)
+//    set x_next = z
+// else 
+//    solve v = f(y)
+//    
 void DABASubProblemManager::Solve(Problem& problem) {
   for (const auto& [camera_index, camera_parameters] : problem.cameras_) {
     camera_parameters_[camera_index] = camera_parameters.array();
@@ -276,6 +294,10 @@ void DABASubProblemManager::Solve(Problem& problem) {
   std::map<int64_t, ceres::Problem> point_cost_functions;
   std::vector<std::function<double()>> ray_cost_functions;
 
+
+  std::map<int64_t, CGraph::GNodePtr> camera_solver_node;
+  std::map<int64_t, CgRaph::GNodePtr> point_solver_node;
+
   for (auto [index_pair, uv] : problem.observations_) {
     int64_t camera_index = index_pair.first;
     int64_t landmark_index = index_pair.second;
@@ -292,6 +314,13 @@ void DABASubProblemManager::Solve(Problem& problem) {
                 condition_camera_parameters_[camera_index].data(),
                 condition_point_parameters_[landmark_index].data(), uv.u(),
                 uv.v()));
+    if (camera_solver_node.count(camera_index) == 0) {
+
+    }
+
+    if (point_solver_node.count(landmark_index) == 0) {
+
+    }
 
     camera_cost_functions[camera_index].AddResidualBlock(
         camera_costfunction, nullptr, camera_parameters_[camera_index].data());
@@ -371,11 +400,13 @@ void DABASubProblemManager::Solve(Problem& problem) {
     assert(parameters_update != nullptr);
     //pipeline->registerGGroup(&parameters_update, {hyper_parameters_update}, "", 1);
 
-    //CGraph::GElementPtr solve_step = pipeline->createGGroup<CGraph::GCluster>({hyper_parameters_update, parameters_update});
-    //assert(solve_step != nullptr);
-    //pipeline->registerGElement<CGraph::GCluster>(&solve_step, {}, "solve_step", 1);
-    pipeline->registerGElement<HyperParametersNode>(&hyper_parameters_update, {}, "h", 1);
-    pipeline->registerGElement<CGraph::GRegion>(&(parameters_update), {hyper_parameters_update}, "p", 1);
+    //pipeline->registerGElement<HyperParametersNode>(&hyper_parameters_update, {}, "h", 1);
+    //pipeline->registerGElement<CGraph::GRegion>(&(parameters_update), {}, "p", 1);
+
+    CGraph::GElementPtr solve_step = pipeline->createGGroup<CGraph::GCluster>({hyper_parameters_update, parameters_update});
+    assert(solve_step != nullptr);
+    pipeline->registerGElement<CGraph::GCluster>(&solve_step, {}, "solve_step", 2);
+
     std::cout << "process start" << std::endl;
     pipeline->process();
     std::cout << "process done" << std::endl;
