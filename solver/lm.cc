@@ -1,5 +1,6 @@
 #include "lm.h"
 #include "iostream"
+#include "Eigen/Sparse"
 
 double QuadraticSolve(const Eigen::VectorXd& s, const Eigen::VectorXd& d, double trust_region) {
 
@@ -57,11 +58,13 @@ void TRSSolve(const Eigen::MatrixXd& J, const Eigen::VectorXd& e, double trust_r
     g = L.inverse() * g;
     Eigen::VectorXd d = -g;
     size_t iterator = 0;
+    size_t max_iteration = 1e6;
     // Truncated CG
-    while(g.norm() > 1e-6) {
+    while(g.norm() > 1e-10 && iterator < max_iteration) {
         double last_square_norm_g = g.dot(g);
         Eigen::VectorXd B_d = B*d;
         double dT_B_d = d.dot(B_d);
+
         if (dT_B_d < 0) {
             // alpha should be larger then 0
             double step_size = QuadraticSolve(s, d, trust_region);
@@ -88,6 +91,7 @@ void TRSSolve(const Eigen::MatrixXd& J, const Eigen::VectorXd& e, double trust_r
         // std::cout << "s: " << s.norm() << std::endl;
         iterator++;
     }
+    std::cout << "norm g : " << g.norm() << std::endl;
     *step  = s;
     *step = L.transpose().inverse() * (*step);
     std::cout << "Iterator CG  : " << iterator << std::endl;
@@ -116,6 +120,9 @@ bool LMSolver::Solve(Eigen::VectorXd *x) {
         // need function to evaluate the next step
         if (AcceptStepOrNot(x0, step, &trust_region)) {
           x0 = x0 + step;
+            std::cout << "Accept step with norm : " << step.norm() << std::endl;
+        } else {
+            std::cout << "Reject" << std::endl;
         }
     }
     *x = x0;
@@ -125,14 +132,9 @@ bool LMSolver::Solve(Eigen::VectorXd *x) {
 bool LMSolver::AcceptStepOrNot(const Eigen::VectorXd &x, const Eigen::VectorXd &step, double *trust_region) {
     const double eta_v = 0.9;
     const double eta_s = 0.1;
-    std::cout << "AcceptStepOrNot" << std::endl;
     Eigen::VectorXd fx = function_->Evaluate(x);
-    std::cout << "Evaluate fx" << std::endl;
     Eigen::MatrixXd J = function_->Jacobians(x);
-    std::cout << "Evaluate J" << std::endl;
     Eigen::VectorXd fx_next = function_->Evaluate(x + step);
-    std::cout << "Evaluate fx_next" << std::endl;
-    std::cout << "fx_next row : " << fx_next.rows() << std::endl;
 
     double rho = (fx.dot(fx) - fx_next.dot(fx_next)) /
                  (fx.dot(fx) - (fx + J * step).squaredNorm());
@@ -149,3 +151,68 @@ bool LMSolver::AcceptStepOrNot(const Eigen::VectorXd &x, const Eigen::VectorXd &
     return false;
 }
 
+using SPM = Eigen::SparseMatrix<double>;
+void TRSSolve(const SPM& Jc, const SPM& Jp, const Eigen::VectorXd& fval,
+              double trust_region, Eigen::VectorXd* delta_c,
+              Eigen::VectorXd* delta_p) {
+  //
+  // Construct V
+  // [Jc^T Jc   Jc^T Jp ]  [delta_c]   =  -[Jc^T f]
+  // [ Jp^T Jc   Jp^T Jp]  [delta_p]       [Jp^T f]
+  size_t camera_size = Jc.rows();
+  size_t point_size = Jp.rows();
+
+  Eigen::VectorXd s(camera_size + point_size);
+
+  Eigen::VectorXd g(camera_size + point_size);
+  g.block(0, 0, camera_size, 1) = Jc.transpose() * fval;
+  g.block(camera_size, 0, point_size, 1) = Jp.transpose() * fval;
+  Eigen::VectorXd d = -g;
+
+  size_t iterator = 0;
+  size_t max_iteration = 128;
+  // Truncated CG
+  while (g.norm() > 1e-10 && iterator < max_iteration) {
+    double last_square_norm_g = g.dot(g);
+    Eigen::VectorXd dc = d.block(0, 0, camera_size, 1);
+    Eigen::VectorXd dp = d.block(camera_size, 0, point_size, 1);
+    Eigen::VectorXd Jdc = Jc * dc;
+    Eigen::VectorXd Jdp = Jp * dp;
+    double dT_B_d = Jdc.dot(Jdc) + 2.0 * Jdc.dot(Jdp) + Jdp.dot(Jdp);
+
+    if (dT_B_d < 0) {
+      // alpha should be larger then 0
+      double step_size = QuadraticSolve(s, d, trust_region);
+      Eigen::VectorXd next_step = s + step_size * d;
+      *delta_c = next_step.block(0, 0, camera_size, 1);
+      *delta_p = next_step.block(camera_size, 0, point_size, 1);
+      //*step = L.transpose().inverse() * (*step);
+      std::cout << "Iterator CG  : " << iterator << std::endl;
+      return;
+    }
+    double alpha = last_square_norm_g / dT_B_d;
+
+    Eigen::VectorXd new_s = s + alpha * d;
+    if (new_s.squaredNorm() > trust_region * trust_region) {
+      double step_size = QuadraticSolve(s, d, trust_region);
+      Eigen::VectorXd next_step = s + step_size * d;
+      *delta_c = next_step.block(0, 0, camera_size, 1);
+      *delta_p = next_step.block(camera_size, 0, point_size, 1);
+      //*step = L.transpose().inverse() * (*step);
+      std::cout << "Iterator CG  : " << iterator << std::endl;
+      return;
+    } else {
+      s = new_s;
+    }
+    // g = g + alpha * B_d;
+    g.block(0, 0, camera_size, 1) +=
+        alpha * Jc.transpose() * (Jc * dc + Jp * dp);
+    g.block(camera_size, 0, point_size, 1) +=
+        alpha * (Jp.transpose() * (Jc * dc + Jp * dp));
+
+    double beta = g.dot(g) / last_square_norm_g;
+    d = beta * d - g;
+    // std::cout << "s: " << s.norm() << std::endl;
+    iterator++;
+                }
+}

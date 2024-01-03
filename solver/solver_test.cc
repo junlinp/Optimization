@@ -25,11 +25,10 @@ class QuadraticFunction : public FirstOrderFunction {
 };
 TEST(LMSolver, Basic) {
     LMSolver solver;
-    std::shared_ptr<FirstOrderFunction> function = std::make_shared<QuadraticFunction>(1024 * 4);
+    std::shared_ptr<FirstOrderFunction> function = std::make_shared<QuadraticFunction>(1024);
     solver.SetFunction(function);
-
     Eigen::VectorXd x = Eigen::VectorXd::Zero(function->VariableDimension());
-
+    std::cout << "Solve" << std::endl;
     solver.Solve(&x);
 
     Eigen::VectorXd residual = function->Evaluate(x);

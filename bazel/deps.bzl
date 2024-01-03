@@ -42,3 +42,10 @@ def deps():
         remote="https://github.com/junlinp/CGraph.git",
         build_file="//third_party:cgraph_build.BUILD"
     )
+
+    maybe(
+        git_repository,
+		name = "googletest",
+		commit = "96eadf659fb75ecda943bd97413c71d4c17c4f43",
+		remote ="https://github.com/google/googletest.git"
+	)
