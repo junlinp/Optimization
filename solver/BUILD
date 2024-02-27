@@ -9,11 +9,11 @@ cc_library(
         ]
 )
 
-cc_binary(
+cc_test(
     name = "solver_test",
     srcs = ["solver_test.cc"],
     deps = [
-        "lm",
-        "@googletest//:gtest",
+        ":lm",
+        "@googletest//:gtest_main",
     ]
 )

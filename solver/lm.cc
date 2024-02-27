@@ -107,13 +107,15 @@ void TRSSolve(const Eigen::MatrixXd& J, const Eigen::VectorXd& e, double trust_r
 
 
 bool LMSolver::Solve(Eigen::VectorXd *x) {
+    std::cout << "Solve" << std::endl;
     Eigen::VectorXd x0 = *x;
     size_t max_iteration = 1024;
     double loss_diff_tolerance = 1e-7;
     size_t iterator = 0;
     size_t last_error = std::numeric_limits<double>::max() - 1;
-
+    std::cout << "Jacobians" << std::endl;
     Eigen::MatrixXd J = function_->Jacobians(x0);
+    std::cout << "Evaluate" << std::endl;
     Eigen::VectorXd e = function_->Evaluate(x0);
     double trust_region = ((J.transpose() * J).inverse() * J * e).norm();
     std::cout << "Trust Region : " << trust_region << std::endl;
@@ -281,7 +283,7 @@ bool BundleAdjustmentLMSolver::AcceptStepOrNot(const Eigen::VectorXd &x, const E
 
     double rho = (fx.dot(fx) - fx_next.dot(fx_next)) /
                  (fx.dot(fx) - (fx + J * step).squaredNorm());
-
+    std::cout << "Rho : " << rho << std::endl;
     if (rho > eta_v) {
         *trust_region *= 2;
         return true;

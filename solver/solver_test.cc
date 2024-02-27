@@ -50,8 +50,3 @@ TEST(BundleAdjustmentLMSolver, Basic) {
     Eigen::VectorXd residual = function->Evaluate(x);
     EXPECT_LT(0.5 * residual.squaredNorm(), 1e-6);
 }
-
-int main(int argc, char **argv) {
-  testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
-}
