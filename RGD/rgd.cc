@@ -5,7 +5,7 @@
 
 auto New_X(const std::vector<SO3Manifold::Vector>& x, const std::vector<SO3Manifold::TangentVector>& steps) {
     std::vector<SO3Manifold::Vector> res;
-    for (int i = 0; i < x.size(); i++) {
+    for (size_t i = 0; i < x.size(); i++) {
       res.push_back(SO3Manifold::Retraction(x[i], steps[i]));
     }
     return res;

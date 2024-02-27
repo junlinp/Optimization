@@ -15,21 +15,20 @@ class Manifold {
   // y = Retraction(x + v)
   static Manifold Retraction(const Manifold &x, const TangentSpaceVector &v);
 
-  // f is a real value function for manifold.
   // so we project the general gradient of f to the tangent sapce of manifold at
   // point x
   static TangentSpaceVector Project(
       const Manifold &x, const GeneralJacobianVector &general_gradient);
 };
 
-template <int ambient_space_size, int tangent_space_size>
+template <int SPACE_SIZE>
 class EuclideanManifold {
  public:
-  constexpr static int AmbientSpaceSize = ambient_space_size;
-  constexpr static int TangentSpaceSize = tangent_space_size;
-  using AmbientSpaceVector = Eigen::Matrix<double, ambient_space_size, 1>;
-  using TangentSpaceVector = Eigen::Matrix<double, tangent_space_size, 1>;
-  using GeneralJacobianVector = Eigen::Matrix<double, ambient_space_size, 1>;
+  constexpr static int AmbientSpaceSize = SPACE_SIZE;
+  constexpr static int TangentSpaceSize = SPACE_SIZE;
+  using AmbientSpaceVector = Eigen::Matrix<double, AmbientSpaceSize, 1>;
+  using TangentSpaceVector = Eigen::Matrix<double, TangentSpaceSize, 1>;
+  using GeneralJacobianVector = Eigen::Matrix<double, AmbientSpaceSize, 1>;
 
   EuclideanManifold() : vector_() { vector_.setZero(); }
   EuclideanManifold(const AmbientSpaceVector &vector) : vector_(vector) {}
@@ -41,7 +40,6 @@ class EuclideanManifold {
     return EuclideanManifold(x.vector_ + v);
   }
 
-  // f is a real value function for manifold.
   // so we project the general gradient of f to the tangent sapce of manifold at
   // point x
   static TangentSpaceVector Project(
@@ -63,18 +61,19 @@ public:
   using GeneralJacobianVector = Eigen::Matrix<double, AmbientSpaceSize, 1>;
 
   RotationMatrixManifold() : vector_() {
+    // col-major identity matrix 
     vector_ << 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0;
   }
+
   RotationMatrixManifold(const AmbientSpaceVector &vector) : vector_(vector) {}
   AmbientSpaceVector AmbientVector() const { return vector_; }
 
   // y = Retraction(x + v)
   static AmbientSpaceVector Retraction(const AmbientSpaceVector &x,
-                                const TangentSpaceVector &v) {
+                                       const TangentSpaceVector &v) {
     return QRDecomposition(x, v);
   }
 
-  // f is a real value function for manifold.
   // so we project the general gradient of f to the tangent sapce of manifold
   // at point x
   static TangentSpaceVector Project(
@@ -126,8 +125,6 @@ public:
     Q = Q * identity;
     return Eigen::Map<TangentSpaceVector>(Q.data());
   }
-  
-
   AmbientSpaceVector vector_;
 };
 
@@ -177,7 +174,6 @@ class ProductManifold {
     return ProductManifold(res_lhs, res_rhs);
   }
 
-  // f is a real value function for manifold.
   // so we project the general gradient of f to the tangent sapce of manifold at
   // point x
   static TangentSpaceVector Project(

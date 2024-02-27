@@ -93,7 +93,7 @@ class CostFunction {
 
 TEST(LeastQuaresRiemannGredientDescentLinearSearch, EuclideanManifold) {
   CostFunction functor;
-  EuclideanManifold<3, 3> manifold;
+  EuclideanManifold<3> manifold;
   Eigen::Vector3d step;
   bool res = LeastQuaresRiemannGredientDescentLinearSearch(functor, manifold, step);
   EXPECT_TRUE(res);
@@ -105,7 +105,7 @@ TEST(LeastQuaresRiemannGredientDescentLinearSearch, EuclideanManifold) {
 
 TEST(LeastQuaresRiemannGredientDescentLinearSearch, TwoProductManifold) {
   CostFunction functor;
-  auto manifold = CreateManifold(EuclideanManifold<2, 2>(), EuclideanManifold<1, 1>());
+  auto manifold = CreateManifold(EuclideanManifold<2>(), EuclideanManifold<1>());
   Eigen::Vector3d step;
   bool res = LeastQuaresRiemannGredientDescentLinearSearch(functor, manifold, step);
   EXPECT_TRUE(res);
@@ -118,8 +118,8 @@ TEST(LeastQuaresRiemannGredientDescentLinearSearch, TwoProductManifold) {
 TEST(LeastQuaresRiemannGredientDescentLinearSearch, ThreeProductManifold) {
   CostFunction functor;
   auto manifold =
-      CreateManifold(EuclideanManifold<1, 1>(), EuclideanManifold<1, 1>(),
-                     EuclideanManifold<1, 1>());
+      CreateManifold(EuclideanManifold<1>(), EuclideanManifold<1>(),
+                     EuclideanManifold<1>());
   Eigen::Vector3d step;
   bool res = LeastQuaresRiemannGredientDescentLinearSearch(functor, manifold, step);
   EXPECT_TRUE(res);
