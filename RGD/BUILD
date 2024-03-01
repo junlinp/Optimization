@@ -12,11 +12,11 @@ cc_library(
     visibility = ["//visibility:public"],
     )
 
-cc_binary(
+cc_test(
     name = "rgd_test",
     srcs = ["rgd_test.cc"],
     deps = [
         ":rgd",
-        "@googletest//:gtest",
+        "@googletest//:gtest_main",
     ]
 )
