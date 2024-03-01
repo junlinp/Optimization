@@ -49,7 +49,29 @@ rules_proto_dependencies()
 rules_proto_toolchains()
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-
+http_archive(
+    name = "com_github_glog",
+    sha256 = "f28359aeba12f30d73d9e4711ef356dc842886968112162bc73002645139c39c",
+    strip_prefix = "glog-0.4.0",
+    url = "https://github.com/google/glog/archive/v0.4.0.tar.gz",
+)
+http_archive(
+        name = "eigen",
+        build_file = "@Optimization//third_party:eigen_build.BUILD",
+        sha256 = "7985975b787340124786f092b3a07d594b2e9cd53bbfe5f3d9b1daee7d55f56f",
+        strip_prefix = "eigen-3.3.9",
+        url = "https://gitlab.com/libeigen/eigen/-/archive/3.3.9/eigen-3.3.9.tar.gz",
+    )
+http_archive(
+    name = "ceres_solver",
+    repo_mapping = {
+        "@com_github_google_glog": "@com_github_glog",
+        "@com_gitlab_libeigen_eigen": "@eigen",
+    },
+    sha256 = "db12d37b4cebb26353ae5b7746c7985e00877baa8e7b12dc4d3a1512252fff3b",
+    strip_prefix = "ceres-solver-2.0.0",
+    url = "https://github.com/ceres-solver/ceres-solver/archive/2.0.0.zip",
+)
 
 # Hedron's Compile Commands Extractor for Bazel
 # https://github.com/hedronvision/bazel-compile-commands-extractor

@@ -6,7 +6,7 @@ cc_library(
         "manifold.h",
         "rgd.h",
         "so3_cost_function_interface.h",
-
+        "rgd_cost_function_interface.h",
     ],
     deps = ["@com_gitlab_libeigen_eigen//:eigen"],
     visibility = ["//visibility:public"],
@@ -18,5 +18,6 @@ cc_test(
     deps = [
         ":rgd",
         "@googletest//:gtest_main",
+        "@ceres_solver//:ceres",
     ]
 )

@@ -1,7 +1,9 @@
 #include "rgd.h"
 #include "Eigen/Householder"
 #include "iostream"
+#include "rgd_cost_function_interface.h"
 #include "so3_cost_function_interface.h"
+#include <memory>
 
 auto New_X(const std::vector<SO3Manifold::Vector>& x, const std::vector<SO3Manifold::TangentVector>& steps) {
     std::vector<SO3Manifold::Vector> res;
@@ -37,6 +39,21 @@ const std::vector<SO3Manifold::TangentVector>& directions
   }
   return alpha;
 }
+
+double RGDBackTracking(const std::shared_ptr<RGDFirstOrderInterface>& cost_function, const Eigen::VectorXd& x,const Eigen::VectorXd& direction) {
+  double tau = 0.8;
+  double r = 1e-4;
+  double alpha = 1.0;
+  double direction_norm = direction.norm();
+  while (
+      cost_function->Evaluate(x) -
+          cost_function->Evaluate(cost_function->Move(x, alpha * direction)) <
+      r * alpha * direction_norm) {
+    alpha *= tau;
+  }
+  return alpha;
+}
+
 bool rgd(const SO3CostFunctionInterface &cost_function,
          std::vector<SO3Manifold::Vector> *x_init) {
   size_t max_iteration = 128;
@@ -63,6 +80,25 @@ bool rgd(const SO3CostFunctionInterface &cost_function,
     //(*x_init)[i] = SO3Manifold::Retraction((*x_init)[i], sk);
 
     std::cout << "error : " << cost_function.Evaluate(*x_init) << std::endl;
+  }
+  return true;
+}
+
+
+bool rgd(const std::shared_ptr<RGDFirstOrderInterface>& cost_function, Eigen::VectorXd* x_init) {
+  size_t max_iteration = 128;
+  size_t iteration = 0;
+  while (iteration++ < max_iteration) {
+    auto jacobians = cost_function->Jacobian(*x_init);
+
+    Eigen::VectorXd TxU = cost_function->ProjectExtendedGradientToTangentSpace(
+        *x_init, jacobians);
+
+    double step = RGDBackTracking(cost_function, *x_init, TxU);
+    std::cout << "Iteration ["<< iteration << "] step size: " << step << std::endl;
+    *x_init = cost_function->Move(*x_init, step * TxU);
+    std::cout << "Iteration [" << iteration
+              << "] error : " << cost_function->Evaluate(*x_init) << std::endl;
   }
   return true;
 }

@@ -2,10 +2,13 @@
 #define RGB_RGD_H_
 #include "manifold.h"
 #include "so3_cost_function_interface.h"
+#include <memory>
 #include <type_traits>
+#include "rgd_cost_function_interface.h"
+//bool rgd(const SO3CostFunctionInterface &cost_function,
+//         std::vector<SO3Manifold::Vector> *x_init);
 
-bool rgd(const SO3CostFunctionInterface &cost_function,
-         std::vector<SO3Manifold::Vector> *x_init);
+bool rgd(const std::shared_ptr<RGDFirstOrderInterface>& cost_function, Eigen::VectorXd* x_init);
 
 // template <int Manifold, int residual_dimension> 
 // class CostFunctionFunctor {
