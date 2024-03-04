@@ -2,6 +2,7 @@
 #define RGD_MANIFOLD_H_
 #include <Eigen/Dense>
 #include <Eigen/src/Core/Matrix.h>
+#include <iostream>
 
 template <int ambient_space_size, int tangent_space_size>
 class Manifold {
@@ -32,6 +33,9 @@ class EuclideanManifold {
 
   EuclideanManifold() = delete; 
 
+  static AmbientSpaceVector IdentityElement() {
+    return AmbientSpaceVector::Zero();
+  }
   // y = Retraction(x + v)
   static AmbientSpaceVector Retraction(const AmbientSpaceVector &x,
                                       const TangentSpaceVector &v) {
@@ -57,10 +61,17 @@ public:
 
   RotationMatrixManifold() = delete;
 
+  static AmbientSpaceVector IdentityElement() {
+    AmbientSpaceVector v;
+    v << 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0;
+    return v;
+  }
+
   // y = Retraction(x + v)
   static AmbientSpaceVector Retraction(const AmbientSpaceVector &x,
                                        const TangentSpaceVector &v) {
-    return QRDecomposition(x, v);
+    //return QRDecomposition(x, v);
+    return CayleyTransformation(x, v);
   }
 
   // so we project the general gradient of f to the tangent sapce of manifold
@@ -71,15 +82,39 @@ public:
 
     Eigen::Map<const Eigen::Matrix3d> X(x.data());
     Eigen::Map<const Eigen::Matrix3d> V(general_gradient.data());
+    Eigen::Matrix3d e1, e2, e3;
 
-    auto SkewPart = [](const Eigen::Matrix3d &X) -> Eigen::Matrix3d {
-      return 0.5 * (X - X.transpose());
+    e1 << 0, 1, 0,
+          -1, 0, 0,
+          0, 0, 0;
+    e2 << 0, 0, 1,
+          0, 0, 0,
+          -1, 0, 0;
+    e3 << 0, 0, 0,
+          0, 0, 1,
+          0, -1, 0;
+    
+    Eigen::Matrix3d tangent_e1 =  e1;
+    Eigen::Matrix3d tangent_e2 =  e2;
+    Eigen::Matrix3d tangent_e3 =  e3;
+
+    auto InnerProduct = [](Eigen::Matrix3d a, Eigen::Matrix3d b) -> double {
+      return (a.transpose() * b).trace();
     };
+    Eigen::Matrix3d remind_V = V; 
+    double v1 = InnerProduct(remind_V, tangent_e1) / (InnerProduct(tangent_e1, tangent_e1));
+    remind_V = remind_V - v1 * tangent_e1;
+    double v2 = InnerProduct(remind_V, tangent_e2) / (InnerProduct(tangent_e2, tangent_e2));
+    remind_V = remind_V - v2 * tangent_e2;
+    double v3 = InnerProduct(V, tangent_e3) / (InnerProduct(tangent_e3, tangent_e3));
+    remind_V = remind_V - v3 * tangent_e3;
+    
 
-    Eigen::Matrix3d XTU = X.transpose() * V;
+    Eigen::Matrix3d TxU = v1 * e1 + v2 * e2 + v3 * e3;
 
-    Eigen::Matrix3d Q = X * SkewPart(XTU);
-    return Eigen::Map<TangentSpaceVector>(Q.data());
+    Eigen::Matrix3d Q = X.transpose() * TxU;
+    std::cout << "TxU + TxU.transpose() : " << TxU + TxU.transpose() << std::endl;
+    return Eigen::Map<TangentSpaceVector>(TxU.data());
   }
 
  private:
@@ -128,7 +163,14 @@ class ProductManifold {
   using TangentSpaceVector = Eigen::Matrix<double, TangentSpaceSize, 1>;
   using GeneralJacobianVector = Eigen::Matrix<double, AmbientSpaceSize, 1>;
 
+  
   ProductManifold() = delete;
+
+  static AmbientSpaceVector IdentityElement() {
+    AmbientSpaceVector v;
+    v << Manifold_lhs::IdentityElement(), Manifold_rhs::IdentityElement();
+    return v;
+  }
 
   // y = Retraction(x + v)
   static AmbientSpaceVector Retraction(const AmbientSpaceVector&x,

@@ -45,12 +45,23 @@ double RGDBackTracking(const std::shared_ptr<RGDFirstOrderInterface>& cost_funct
   double r = 1e-4;
   double alpha = 1.0;
   double direction_norm = direction.norm();
+  int max_iteration = 1024;
+  int iteration = 0;
   while (
       cost_function->Evaluate(x) -
           cost_function->Evaluate(cost_function->Move(x, alpha * direction)) <
-      r * alpha * direction_norm) {
+      r * alpha * direction_norm && iteration++ < max_iteration) {
     alpha *= tau;
   }
+  if (iteration >= max_iteration) {
+    std::cout << "Warning : Iteration reach Max Iteration" << std::endl;
+    return 0.0;
+  }
+  std::cout << "BackTracing Initial Cost : " << cost_function->Evaluate(x) << std::endl;
+  std::cout << "BackTracing Move Cost : " << cost_function->Evaluate(cost_function->Move(x, alpha * direction)) << std::endl;
+  std::cout << "r * alpha * direction_norm : " << r * alpha * direction_norm << std::endl;
+  std::cout << "iteration : " << iteration << std::endl;
+
   return alpha;
 }
 
@@ -86,17 +97,20 @@ bool rgd(const SO3CostFunctionInterface &cost_function,
 
 
 bool rgd(const std::shared_ptr<RGDFirstOrderInterface>& cost_function, Eigen::VectorXd* x_init) {
-  size_t max_iteration = 128;
+  size_t max_iteration = 4;
   size_t iteration = 0;
+
+  std::cout << "Initial error : " << cost_function->Evaluate(*x_init)
+            << std::endl;
   while (iteration++ < max_iteration) {
     auto jacobians = cost_function->Jacobian(*x_init);
 
     Eigen::VectorXd TxU = cost_function->ProjectExtendedGradientToTangentSpace(
         *x_init, jacobians);
-
-    double step = RGDBackTracking(cost_function, *x_init, TxU);
+    std::cout << "Iteration [" << iteration << "] TxU" << TxU << std::endl;
+    double step = RGDBackTracking(cost_function, *x_init, -TxU);
     std::cout << "Iteration ["<< iteration << "] step size: " << step << std::endl;
-    *x_init = cost_function->Move(*x_init, step * TxU);
+    *x_init = cost_function->Move(*x_init, step * -TxU);
     std::cout << "Iteration [" << iteration
               << "] error : " << cost_function->Evaluate(*x_init) << std::endl;
   }
