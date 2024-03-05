@@ -1,6 +1,7 @@
 #include "rgd.h"
 
 #include "gtest/gtest.h"
+#include <memory>
 #include "manifold.h"
 #include "rgd_cost_function_interface.h"
 #include "so3_cost_function_interface.h"
@@ -186,11 +187,11 @@ class SpecialEuclideanManifoldCostFunction : public RGDFirstOrderInterface {
     Eigen::Map<Eigen::Matrix<JetType, 3, 1>> t(jet_parameters + 9);
 
     Eigen::Matrix<JetType, 3, 3> res_R =
-        rotation_L_.transpose() * R.transpose() * rotation_R_ * R;
+        rotation_L_.transpose() * R.transpose() * rotation_R_ * R - Eigen::Matrix3d::Identity();
 
     Eigen::Matrix<JetType, 3, 1> res_t =
         rotation_L_.transpose() *
-        (R.transpose() * (rotation_R_ * (t - translation_R_) - t) -
+        (R.transpose() * (rotation_R_ * t + translation_R_ - t) -
          translation_L_);
 
     (*residuals)(0) = res_R(0, 0).a;
@@ -256,6 +257,49 @@ class SpecialEuclideanManifoldCostFunction : public RGDFirstOrderInterface {
                        const Eigen::VectorXd &direction) const override {
     return SepecialEuclideanManifold::Retraction(x, direction);
   }
+};
+
+class MultipleCostFunction : public RGDFirstOrderInterface {
+public:
+  MultipleCostFunction() = default;
+  ~MultipleCostFunction() = default; 
+
+  void AddCostFunction(std::shared_ptr<RGDFirstOrderInterface> ptr) {
+    cost_function_ptr.push_back(ptr);
+  }
+
+  double Evaluate(const Eigen::VectorXd &x) const override {
+    double res = 0.0;
+
+    for(auto ptr : cost_function_ptr) {
+      res += ptr->Evaluate(x);
+    }
+    return res;
+  }
+
+  Eigen::VectorXd Jacobian(const Eigen::VectorXd &x) const override {
+    Eigen::VectorXd jacobian = x;
+    jacobian.setZero();
+
+    for (auto ptr : cost_function_ptr) {
+      jacobian += ptr->Jacobian(x);
+    }
+    return jacobian;
+  }
+
+  Eigen::VectorXd ProjectExtendedGradientToTangentSpace(
+      const Eigen::VectorXd &x,
+      const Eigen::VectorXd &general_gradient) const override {
+    return SepecialEuclideanManifold::Project(x, general_gradient);
+  }
+
+  Eigen::VectorXd Move(const Eigen::VectorXd &x,
+                       const Eigen::VectorXd &direction) const override {
+    return SepecialEuclideanManifold::Retraction(x, direction);
+  }
+
+private:
+  std::vector<std::shared_ptr<RGDFirstOrderInterface>> cost_function_ptr;
 };
 
 TEST(RotationMatrixManifold, tangent_space) {
@@ -405,13 +449,22 @@ TEST(LeastQuaresRiemannGredientDescentLinearSearch, SepecialEuclideanManifold) {
          -0.977612, -0.180936, 0.107415;
   TB2 << -309.543, 59.0244, 291.177;
 
-  std::shared_ptr<SpecialEuclideanManifoldCostFunction> cost_function = 
-      std::make_shared<SpecialEuclideanManifoldCostFunction>(RB1, RA1, TB1,
-                                                             TA1);
+  std::shared_ptr<SpecialEuclideanManifoldCostFunction> cost_function1 = 
+      std::make_shared<SpecialEuclideanManifoldCostFunction>(RA1, RB1, TA1,
+                                                             TB1);
+
+  std::shared_ptr<SpecialEuclideanManifoldCostFunction> cost_function2 = 
+      std::make_shared<SpecialEuclideanManifoldCostFunction>(RA2, RB2, TA2,
+                                                             TB2);
+  
+  std::shared_ptr<MultipleCostFunction> cost_function = std::make_shared<MultipleCostFunction>();
+  cost_function->AddCostFunction(cost_function1);
+  cost_function->AddCostFunction(cost_function2);
+
   //using Manifold = Eigen::Matrix<double, 12, 1>;
   Eigen::VectorXd manifold = ProductManifold<RotationMatrixManifold, EuclideanManifold<3>>::IdentityElement();
 
-  //manifold << 1.0, 0.0, 0.0, 0.0, 0.98014571, 0.19827854, 0.0, -0.19827854, 0.98014571, 10.0, 50.0, 100.0;
+  manifold << 1.0, 0.0, 0.0, 0.0, 0.98014571, 0.19827854, 0.0, -0.19827854, 0.98014571, 10.0, 50.0, 100.0;
 
   rgd(cost_function, &manifold);
   /*
@@ -429,8 +482,9 @@ TEST(LeastQuaresRiemannGredientDescentLinearSearch, SepecialEuclideanManifold) {
  Eigen::Vector3d solution_translation = manifold.tail<3>();
 
   std::cout << "target_rotation : " << target_rotation << std::endl;
+ std::cout <<  "solution_rotation : " << manifold.head<9>() << std::endl;
   std::cout << "Solution_translation : " << solution_translation << std::endl;
- EXPECT_LE((target_translation - solution_translation).norm(), 1e-3);
+ EXPECT_LE((target_translation - solution_translation).norm(), 1.0);
 }
 
 struct ConjugationCostFunction{

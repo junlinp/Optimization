@@ -97,7 +97,7 @@ bool rgd(const SO3CostFunctionInterface &cost_function,
 
 
 bool rgd(const std::shared_ptr<RGDFirstOrderInterface>& cost_function, Eigen::VectorXd* x_init) {
-  size_t max_iteration = 4;
+  size_t max_iteration = 16;
   size_t iteration = 0;
 
   std::cout << "Initial error : " << cost_function->Evaluate(*x_init)
