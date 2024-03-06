@@ -1,3 +1,4 @@
+#include "gradient_checker.h"
 #include "rgd.h"
 
 #include "gtest/gtest.h"
@@ -10,10 +11,10 @@
 #include "ceres/problem.h"
 #include "ceres/solver.h"
 
+#include "RGD/gradient_checker.h"
 
 #include "ceres/jet.h"
-TEST(RGD, Basic) {
-  struct BasicCostFunction : public RGDFirstOrderInterface {
+struct BasicCostFunction : public RGDFirstOrderInterface {
    private:
     Eigen::Matrix3d target;
 
@@ -72,6 +73,13 @@ TEST(RGD, Basic) {
     }
   };
 
+TEST(Gradientchecker, Basic) {
+  std::shared_ptr<RGDFirstOrderInterface> function = std::make_shared<BasicCostFunction>();
+
+  GradientChecker::Check<RotationMatrixManifold>(function);
+}
+
+TEST(RGD, Basic) {
   std::shared_ptr<BasicCostFunction> function = std::make_shared<BasicCostFunction>();
   Eigen::Matrix<double, 9, 1> x0;
   double theta = 3.14 * 0.4;
@@ -164,10 +172,10 @@ class SpecialEuclideanManifoldCostFunction : public RGDFirstOrderInterface {
                                        Eigen::Matrix3d rotation_R,
                                        Eigen::Vector3d translation_L,
                                        Eigen::Vector3d translation_R)
-      : rotation_L_(rotation_L),
-        rotation_R_(rotation_R),
-        translation_L_(translation_L),
-        translation_R_(translation_R) {}
+      : rotation_L_(rotation_R),
+        rotation_R_(rotation_L),
+        translation_L_(translation_R),
+        translation_R_(translation_L) {}
 
   template <class Manifold>
   bool Evaluate(const Manifold &parameters, ResidualVector *residuals,
@@ -189,10 +197,11 @@ class SpecialEuclideanManifoldCostFunction : public RGDFirstOrderInterface {
     Eigen::Matrix<JetType, 3, 3> res_R =
         rotation_L_.transpose() * R.transpose() * rotation_R_ * R - Eigen::Matrix3d::Identity();
 
+    Eigen::Matrix<JetType, 3, 1> tmp = rotation_R_ * t + translation_R_;
+    tmp = R.transpose() * (tmp - t);
+
     Eigen::Matrix<JetType, 3, 1> res_t =
-        rotation_L_.transpose() *
-        (R.transpose() * (rotation_R_ * t + translation_R_ - t) -
-         translation_L_);
+        rotation_L_.transpose() * (tmp - translation_L_);
 
     (*residuals)(0) = res_R(0, 0).a;
     (*residuals)(1) = res_R(1, 0).a;
@@ -464,7 +473,8 @@ TEST(LeastQuaresRiemannGredientDescentLinearSearch, SepecialEuclideanManifold) {
   //using Manifold = Eigen::Matrix<double, 12, 1>;
   Eigen::VectorXd manifold = ProductManifold<RotationMatrixManifold, EuclideanManifold<3>>::IdentityElement();
 
-  manifold << 1.0, 0.0, 0.0, 0.0, 0.98014571, 0.19827854, 0.0, -0.19827854, 0.98014571, 10.0, 50.0, 100.0;
+  //manifold << 1.0, 0.0, 0.0, 0.0, 0.98014571, 0.19827854, 0.0, -0.19827854, 0.98014571, 10.0, 50.0, 100.0;
+  manifold << 1.0, 0.0, 0.0, 0.0, 0.98014571, 0.0, 0.0, 0.0, 0.98014571, 10.0, 50.0, 50.0;
 
   rgd(cost_function, &manifold);
   /*
@@ -481,10 +491,21 @@ TEST(LeastQuaresRiemannGredientDescentLinearSearch, SepecialEuclideanManifold) {
 
  Eigen::Vector3d solution_translation = manifold.tail<3>();
 
-  std::cout << "target_rotation : " << target_rotation << std::endl;
- std::cout <<  "solution_rotation : " << manifold.head<9>() << std::endl;
-  std::cout << "Solution_translation : " << solution_translation << std::endl;
+ std::cout << "target_rotation : " << target_rotation << std::endl;
+ std::cout << "Solution_translation : " << solution_translation << std::endl;
+
  EXPECT_LE((target_translation - solution_translation).norm(), 1.0);
+ Eigen::Map<Eigen::Matrix3d> solution_rotation(manifold.data());
+
+ std::cout << "solution_rotation : " << solution_rotation << std::endl;
+
+ double rotation_error = (target_rotation.transpose() * solution_rotation -
+                          Eigen::Matrix3d::Identity())
+                             .array()
+                             .square()
+                             .sum() *
+                         0.5;
+ EXPECT_LE(rotation_error, 0.5);
 }
 
 struct ConjugationCostFunction{
@@ -514,7 +535,7 @@ struct ConjugationCostFunction{
     // => B' * X' * A * X = Identity
 
     TMatrix3d res_rotation =
-        rotation_B_.transpose() * rotation.transpose() * rotation_A_ * rotation - Eigen::Matrix3d::Identity();
+        (rotation_B_.transpose() * rotation.transpose() * rotation_A_ * rotation) - Eigen::Matrix3d::Identity();
 
     TVector3d tmp = rotation_A_ * translation + translation_A_;
     tmp = rotation.transpose() * (tmp - translation);
@@ -522,7 +543,7 @@ struct ConjugationCostFunction{
     TVector3d res_translation = tmp;
 
     Eigen::Map<Eigen::Matrix<T, 3, 3>> residuals_map(residuals);
-    residuals_map = res_rotation;
+    residuals_map = 2.0 * res_rotation;
     residuals[9] = res_translation(0);
     residuals[10] = res_translation(1);
     residuals[11] = res_translation(2);
@@ -570,7 +591,7 @@ TEST(ceres, ConjugationRtationAveraging) {
           new ConjugationCostFunction(RA2, RB2, TA2, TB2));
 
   ceres::Problem problem;
-  double parameters[6] = {1.0, 2.0, 3.0, 9.0, 50.0, 100.0};
+  double parameters[6] = {1.0, 2.0, 3.0, 9.0, 0.0, 0.0};
   problem.AddResidualBlock(cost_function, nullptr, parameters);
   problem.AddResidualBlock(cost_function2, nullptr, parameters);
 

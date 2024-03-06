@@ -42,7 +42,7 @@ const std::vector<SO3Manifold::TangentVector>& directions
 
 double RGDBackTracking(const std::shared_ptr<RGDFirstOrderInterface>& cost_function, const Eigen::VectorXd& x,const Eigen::VectorXd& direction) {
   double tau = 0.8;
-  double r = 1e-4;
+  double r = 1e-2;
   double alpha = 1.0;
   double direction_norm = direction.norm();
   int max_iteration = 1024;

@@ -7,6 +7,7 @@ cc_library(
         "rgd.h",
         "so3_cost_function_interface.h",
         "rgd_cost_function_interface.h",
+        "gradient_checker.h"
     ],
     deps = ["@com_gitlab_libeigen_eigen//:eigen"],
     visibility = ["//visibility:public"],
