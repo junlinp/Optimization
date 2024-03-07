@@ -97,22 +97,22 @@ bool rgd(const SO3CostFunctionInterface &cost_function,
 
 
 bool rgd(const std::shared_ptr<RGDFirstOrderInterface>& cost_function, Eigen::VectorXd* x_init) {
-  size_t max_iteration = 16;
+  size_t max_iteration = 32;
   size_t iteration = 0;
 
-  std::cout << "Initial error : " << cost_function->Evaluate(*x_init)
-            << std::endl;
+  //std::cout << "Initial error : " << cost_function->Evaluate(*x_init)
+  //          << std::endl;
   while (iteration++ < max_iteration) {
     auto jacobians = cost_function->Jacobian(*x_init);
 
     Eigen::VectorXd TxU = cost_function->ProjectExtendedGradientToTangentSpace(
         *x_init, jacobians);
-    std::cout << "Iteration [" << iteration << "] TxU" << TxU << std::endl;
+    //std::cout << "Iteration [" << iteration << "] TxU" << TxU << std::endl;
     double step = RGDBackTracking(cost_function, *x_init, -TxU);
-    std::cout << "Iteration ["<< iteration << "] step size: " << step << std::endl;
+    //std::cout << "Iteration ["<< iteration << "] step size: " << step << std::endl;
     *x_init = cost_function->Move(*x_init, step * -TxU);
-    std::cout << "Iteration [" << iteration
-              << "] error : " << cost_function->Evaluate(*x_init) << std::endl;
+    //std::cout << "Iteration [" << iteration
+    //          << "] error : " << cost_function->Evaluate(*x_init) << std::endl;
   }
   return true;
 }

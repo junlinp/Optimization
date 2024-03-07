@@ -7,21 +7,36 @@ class GradientChecker {
     public:
     template<class Manifold>
     static void Check(std::shared_ptr<RGDFirstOrderInterface> cost_function) {
-        Eigen::VectorXd identity = Manifold::IdentityElement();
-        Eigen::VectorXd jacobians = cost_function->Jacobian(identity);
-        Eigen::VectorXd TxU = Manifold::Project(
-            identity, jacobians);
+        Eigen::VectorXd x = Manifold::RandomElement();
+        Eigen::VectorXd jacobians = cost_function->Jacobian(x);
+        Eigen::VectorXd gradient = Manifold::Project(
+            x, jacobians);
+
+        assert(Manifold::IsTangentSpaceVector(gradient));
 
         double t = 1e-8;
-        double fval = cost_function->Evaluate(identity);
-        while(t < 10) {
+        double fval = cost_function->Evaluate(x);
+        Eigen::Vector3d random;
+        random.setRandom();
 
-            double next_fval = cost_function->Evaluate(cost_function->Move(identity, t * TxU));
-            double delta = next_fval - fval;
+        Eigen::VectorXd v(9);
+        v.setRandom();
+        v = Manifold::Project(x, v);
+        v.normalized();
+        assert(Manifold::IsTangentSpaceVector(v));
+        double last_delta = 0.0;
+        double last_t = 0.0;
+
+        double Df_v = gradient.dot(v);
+        while(t < 10) {
+            double next_fval = cost_function->Evaluate(cost_function->Move(x, t * v));
+            double delta = std::abs(next_fval - fval - t * Df_v);
             // log(delta) ~= 2.0 * log(t) + const
             std::cout <<  std::log(t)
-                      << "," << std::log(delta) << std::endl;
-            t *= 1.5;
+                      << "," << std::log(delta) << " slope : " << (std::log(delta) - last_delta) / (std::log(t) - last_t) << std::endl;
+            last_delta = std::log(delta);
+            last_t = std::log(t);
+            t *= 1.1;
         }
     }
 };

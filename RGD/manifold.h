@@ -51,6 +51,53 @@ class EuclideanManifold {
   }
 };
 
+template <int DIM>
+class SphereManifold {
+public:
+  constexpr static int AmbientSpaceSize = DIM;
+  constexpr static int TangentSpaceSize = DIM;
+  using AmbientSpaceVector = Eigen::Matrix<double, DIM, 1>;
+  using TangentSpaceVector = Eigen::Matrix<double, DIM, 1>;
+  using GeneralJacobianVector = Eigen::Matrix<double, DIM, 1>;
+
+  SphereManifold() = delete;
+
+  static AmbientSpaceVector IdentityElement() {
+    AmbientSpaceVector v;
+    v.setRandom();
+    v.normalized();
+    return v;
+  }
+
+  static AmbientSpaceVector RandomElement() {
+    AmbientSpaceVector v;
+    v.setRandom();
+    v.normalized();
+    return v;
+  }
+
+  // y = Retraction(x + v)
+  static AmbientSpaceVector Retraction(const AmbientSpaceVector &x,
+                                       const TangentSpaceVector &v) {
+    //return QRDecomposition(x, v);
+    AmbientSpaceVector r = x + v;
+    return r / r.norm();
+  }
+
+  // so we project the general gradient of f to the tangent sapce of manifold
+  // at point x
+  static TangentSpaceVector Project(
+      const AmbientSpaceVector &x,
+      const GeneralJacobianVector &general_gradient) {
+    return Eigen::MatrixXd::Identity(DIM, DIM) -
+           x * x.transpose() * general_gradient;
+  }
+
+  static bool IsTangentSpaceVector(const AmbientSpaceVector& x, const TangentSpaceVector& v) {
+    return x.dot(v) < 1e-5;
+  }
+
+};
 class RotationMatrixManifold {
 public:
   constexpr static int AmbientSpaceSize = 9;
@@ -64,6 +111,15 @@ public:
   static AmbientSpaceVector IdentityElement() {
     AmbientSpaceVector v;
     v << 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0;
+    return v;
+  }
+
+  static AmbientSpaceVector RandomElement() {
+
+    AmbientSpaceVector v;
+
+    double theta = 3.0;
+    v << 1.0, 0.0, 0.0, 0.0, std::cos(theta), std::sin(theta), 0.0, -std::sin(theta), std::cos(theta);
     return v;
   }
 
@@ -113,8 +169,12 @@ public:
     Eigen::Matrix3d TxU = v1 * e1 + v2 * e2 + v3 * e3;
 
     Eigen::Matrix3d Q = X.transpose() * TxU;
-    std::cout << "TxU + TxU.transpose() : " << TxU + TxU.transpose() << std::endl;
+    //std::cout << "TxU + TxU.transpose() : " << TxU + TxU.transpose() << std::endl;
     return Eigen::Map<TangentSpaceVector>(TxU.data());
+  }
+  static bool IsTangentSpaceVector(const TangentSpaceVector& v) {
+    Eigen::Map<const Eigen::Matrix3d> U(v.data());
+    return (U + U.transpose()).array().square().sum() < 1e-5;
   }
 
  private:
@@ -126,9 +186,17 @@ public:
     Eigen::Matrix3d W =
         (Identity - 0.5 * X * X.transpose()) * V * X.transpose() -
         X * V.transpose() * (Identity - 0.5 * X * X.transpose());
-    
-    Eigen::Matrix3d Q = (Identity - 0.5 * W).inverse() * (Identity + 0.5 * W) * X;
-    return Eigen::Map<TangentSpaceVector>(Q.data());
+
+    Eigen::Matrix3d invertible_matrix = (Identity -0.5 * W);
+    Eigen::FullPivLU<Eigen::Matrix3d> solver(invertible_matrix);
+    Eigen::Matrix3d P = solver.permutationP();
+    Eigen::Matrix3d L = Eigen::Matrix3d::Identity();
+    L.triangularView<Eigen::StrictlyLower>() = solver.matrixLU();
+    Eigen::Matrix3d U = solver.matrixLU().triangularView<Eigen::Upper>();
+    Eigen::Matrix3d Q = solver.permutationQ();
+
+    Eigen::Matrix3d res = Q * U.inverse() * L.inverse() * P * (Identity + 0.5 * W) * X;
+    return Eigen::Map<TangentSpaceVector>(res.data());
   }
 
   static TangentSpaceVector QRDecomposition(const AmbientSpaceVector&x, const TangentSpaceVector& v) {

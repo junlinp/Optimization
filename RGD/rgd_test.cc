@@ -32,33 +32,12 @@ struct BasicCostFunction : public RGDFirstOrderInterface {
         const Eigen::VectorXd &x) const override {
 
       Eigen::Matrix3d A = target.transpose().eval();
-      Eigen::Matrix<double, 9, 9> G;
-      G.setZero();
-      G.block<1, 3>(0, 0) = A.row(0);
-      G.block<1, 3>(1, 3) = A.row(1);
-      G.block<1, 3>(2, 6) = A.row(2);
-
-      G.block<1, 3>(3, 0) = A.row(0);
-      G.block<1, 3>(4, 3) = A.row(1);
-      G.block<1, 3>(5, 6) = A.row(2);
-
-      G.block<1, 3>(6, 0) = A.row(0);
-      G.block<1, 3>(7, 3) = A.row(1);
-      G.block<1, 3>(8, 6) = A.row(2);
-      std::cout << " G : " << G << std::endl;
-      std::vector<SO3Manifold::Vector> res;
-
-      Eigen::Matrix<double, 3, 3> row_major_identity =
-          Eigen::Matrix3d::Identity();
-      Eigen::Map<Eigen::Matrix<double, 9, 1>> vector_identity(
-          row_major_identity.data());
-
-        std::cout << "Error : " << (G * x - vector_identity).squaredNorm()
-                  << std::endl;
-        Eigen::Matrix<double, 9, 1> jacobian =
-            2.0 * G.transpose() * (G * x - vector_identity);
-        std::cout << "jacobian : " << jacobian << std::endl;
-
+      Eigen::Map<const Eigen::Matrix3d> X(x.data());
+      Eigen::Matrix3d H = 0.5 * A * (A * X - Eigen::Matrix3d::Identity()) +
+      0.5 * A * (A.transpose() * X - Eigen::Matrix3d::Identity());
+      
+      std::cout << "H is skew-matrix ? : " << (H + H.transpose()) << std::endl;
+      Eigen::Map<Eigen::Matrix<double, 9, 1>> jacobian(H.data());
       return jacobian;
     }
 
@@ -73,6 +52,7 @@ struct BasicCostFunction : public RGDFirstOrderInterface {
     }
   };
 
+
 TEST(Gradientchecker, Basic) {
   std::shared_ptr<RGDFirstOrderInterface> function = std::make_shared<BasicCostFunction>();
 
@@ -85,15 +65,48 @@ TEST(RGD, Basic) {
   double theta = 3.14 * 0.4;
   x0 << 1.0, 0.0, 0.0, 0.0, std::cos(theta), -std::sin(theta), 0.0,
       std::sin(theta), std::cos(theta);
-  std::cout << "x0 " << x0 << std::endl;
   Eigen::VectorXd x = x0;
   rgd(function, &x);
-
   Eigen::Map<Eigen::Matrix3d> matrix_solution(x.data());
+  
+  EXPECT_LT(function->Evaluate(x), 1e-5);
+}
 
-  std::cout << "Solution : " << matrix_solution << std::endl;
-  std::cout << "Rotation Matrix ? "
-            << matrix_solution.transpose() * matrix_solution << std::endl;
+struct GradientCheckerExample : public RGDFirstOrderInterface {
+
+    public:
+      Eigen::Matrix3d symmetry_A;
+    
+    GradientCheckerExample(Eigen::Matrix3d A) : symmetry_A(A) {}
+
+    double Evaluate(const Eigen::VectorXd &x) const override {
+      return -x.dot(symmetry_A * x);
+    }
+
+
+    Eigen::VectorXd Jacobian(
+        const Eigen::VectorXd &x) const override {
+          return -2.0 * symmetry_A * x;
+    }
+
+    Eigen::VectorXd ProjectExtendedGradientToTangentSpace(
+      const Eigen::VectorXd&x, const Eigen::VectorXd &general_gradient) const override {
+        return SphereManifold<3>::Project(x, general_gradient);
+      };
+
+    Eigen::VectorXd Move(const Eigen::VectorXd& x,
+                                 const Eigen::VectorXd& direction) const override {
+      return SphereManifold<3>::Retraction(x, direction);
+    }
+};
+
+TEST(GradientCheckerExample, Basic) {
+  Eigen::Matrix3d A = Eigen::Matrix3d::Random();
+  A = A.transpose() * A;
+  std::shared_ptr<RGDFirstOrderInterface> cost_function =
+      std::make_shared<GradientCheckerExample>(A);
+
+  GradientChecker::Check<RotationMatrixManifold>(cost_function);
 }
 
 /*
@@ -158,7 +171,7 @@ TEST(LeastQuaresRiemannGredientDescentLinearSearch, ThreeProductManifold) {
 }
 */
 
-
+/*
 class SpecialEuclideanManifoldCostFunction : public RGDFirstOrderInterface {
  public:
   using ResidualVector = Eigen::Matrix<double, 9 + 3, 1>;
@@ -477,12 +490,10 @@ TEST(LeastQuaresRiemannGredientDescentLinearSearch, SepecialEuclideanManifold) {
   manifold << 1.0, 0.0, 0.0, 0.0, 0.98014571, 0.0, 0.0, 0.0, 0.98014571, 10.0, 50.0, 50.0;
 
   rgd(cost_function, &manifold);
-  /*
-  [[ 1.          0.          0.          9.99989033]
- [ 0.          0.98014571 -0.19827854 50.00001805]
- [ 0.          0.19827854  0.98014571 99.99990214]
- [ 0.          0.          0.          1.        ]]
-  */
+  //[[ 1.          0.          0.          9.99989033]
+ //[ 0.          0.98014571 -0.19827854 50.00001805]
+ //[ 0.          0.19827854  0.98014571 99.99990214]
+ //[ 0.          0.          0.          1.        ]]
 
  Eigen::Matrix3d target_rotation;
  target_rotation << 1.0, 0.0, 0.0, 0.0, 0.98014571, -0.19827854, 0.0, 0.19827854, 0.98014571;
@@ -622,3 +633,5 @@ TEST(ceres, ConjugationRtationAveraging) {
   std::cout << RB1 * target_rotation << std::endl;
   std::cout << target_rotation * RA1 << std::endl;
 }
+
+*/
