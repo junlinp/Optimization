@@ -127,6 +127,30 @@ public:
   static AmbientSpaceVector Retraction(const AmbientSpaceVector &x,
                                        const TangentSpaceVector &v) {
     //return QRDecomposition(x, v);
+    Eigen::Map<const Eigen::Matrix3d> w(v.data());
+
+    Eigen::Vector3d u;
+    u << w(2, 1), w(0, 2), w(1, 0);
+
+    double theta = u.norm();
+    Eigen::Matrix3d w_hat = w / theta;
+
+    Eigen::Map<const Eigen::Matrix3d> X(x.data());
+    double coe1 = 0.0, coe2 = 0.0;
+    if (theta < 1e-7) {
+      coe1 = 1.0 - theta / 2.0 * theta / 3.0 +
+             theta / 2.0 * theta / 3.0 * theta / 4.0 * theta / 5.0;
+      coe2 = 0.5 - theta / 4 * theta / 6 +
+             theta / 2.0 * theta / 5.0 * theta / 6.0 * theta / 7.0;
+    } else {
+      coe1 = std::sin(theta) / theta;
+      coe2 = (1.0 - std::cos(theta)) / theta / theta ;
+    }
+    /*
+    return (X * (Eigen::Matrix3d::Identity() + coe1 * w_hat +
+                 (coe2 * (w_hat * w_hat))))
+        .reshaped();
+    */
     return CayleyTransformation(x, v);
   }
 
@@ -140,15 +164,15 @@ public:
     Eigen::Map<const Eigen::Matrix3d> V(general_gradient.data());
     Eigen::Matrix3d e1, e2, e3;
 
-    e1 << 0, 1, 0,
-          -1, 0, 0,
+    e1 << 0, -1, 0,
+          1, 0, 0,
           0, 0, 0;
     e2 << 0, 0, 1,
           0, 0, 0,
           -1, 0, 0;
     e3 << 0, 0, 0,
-          0, 0, 1,
-          0, -1, 0;
+          0, 0, -1,
+          0, 1, 0;
     
     Eigen::Matrix3d tangent_e1 =  e1;
     Eigen::Matrix3d tangent_e2 =  e2;
@@ -170,7 +194,7 @@ public:
 
     Eigen::Matrix3d Q = X.transpose() * TxU;
     //std::cout << "TxU + TxU.transpose() : " << TxU + TxU.transpose() << std::endl;
-    return Eigen::Map<TangentSpaceVector>(TxU.data());
+    return Eigen::Map<TangentSpaceVector>(Q.data());
   }
   static bool IsTangentSpaceVector(const TangentSpaceVector& v) {
     Eigen::Map<const Eigen::Matrix3d> U(v.data());

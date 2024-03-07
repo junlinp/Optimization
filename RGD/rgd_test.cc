@@ -24,19 +24,17 @@ struct BasicCostFunction : public RGDFirstOrderInterface {
     double Evaluate(const Eigen::VectorXd &x) const override {
 
       Eigen::Map<const Eigen::Matrix3d> X(x.data());
-
-      return (target.transpose() * X - Eigen::Matrix3d::Identity()).array().square().sum() * 0.5;
+      Eigen::Matrix3d H = target.transpose() * X - Eigen::Matrix3d::Identity();
+      return 0.5 * (H.transpose() * H).trace();
     }
 
     Eigen::VectorXd Jacobian(
         const Eigen::VectorXd &x) const override {
 
-      Eigen::Matrix3d A = target.transpose().eval();
+      Eigen::Matrix3d A = target.eval();
       Eigen::Map<const Eigen::Matrix3d> X(x.data());
-      Eigen::Matrix3d H = 0.5 * A * (A * X - Eigen::Matrix3d::Identity()) +
-      0.5 * A * (A.transpose() * X - Eigen::Matrix3d::Identity());
+      Eigen::Matrix3d H =  A * (A.transpose() * X - Eigen::Matrix3d::Identity()); 
       
-      std::cout << "H is skew-matrix ? : " << (H + H.transpose()) << std::endl;
       Eigen::Map<Eigen::Matrix<double, 9, 1>> jacobian(H.data());
       return jacobian;
     }
@@ -100,13 +98,13 @@ struct GradientCheckerExample : public RGDFirstOrderInterface {
     }
 };
 
-TEST(GradientCheckerExample, Basic) {
-  Eigen::Matrix3d A = Eigen::Matrix3d::Random();
+TEST(GradientCheckerExample, SphereManifold) {
+  Eigen::Matrix3d A = Eigen::Matrix3d::Identity();
   A = A.transpose() * A;
   std::shared_ptr<RGDFirstOrderInterface> cost_function =
       std::make_shared<GradientCheckerExample>(A);
 
-  GradientChecker::Check<RotationMatrixManifold>(cost_function);
+  GradientChecker::Check<SphereManifold<3>>(cost_function);
 }
 
 /*

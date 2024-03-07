@@ -19,7 +19,7 @@ class GradientChecker {
         Eigen::Vector3d random;
         random.setRandom();
 
-        Eigen::VectorXd v(9);
+        Eigen::VectorXd v = gradient;
         v.setRandom();
         v = Manifold::Project(x, v);
         v.normalized();
