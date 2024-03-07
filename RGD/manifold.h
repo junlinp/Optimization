@@ -73,7 +73,7 @@ public:
     AmbientSpaceVector v;
     v.setRandom();
     v.normalized();
-    v << 1.0 ,0.0, 0.0;
+    v << 0.0 ,0.707, 0.707;
     return v;
   }
 
@@ -82,7 +82,8 @@ public:
                                        const TangentSpaceVector &v) {
     //return QRDecomposition(x, v);
     AmbientSpaceVector r = x + v;
-    return r / r.norm();
+    //return r / r.norm();
+    return r / std::sqrt(1.0 + v.dot(v));
   }
 
   // so we project the general gradient of f to the tangent sapce of manifold

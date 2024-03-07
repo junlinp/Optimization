@@ -8,6 +8,7 @@ class GradientChecker {
     template<class Manifold>
     static void Check(std::shared_ptr<RGDFirstOrderInterface> cost_function) {
         Eigen::VectorXd x = Manifold::RandomElement();
+        std::cout << "x0 : " << x << std::endl;
         Eigen::VectorXd jacobians = cost_function->Jacobian(x);
 
         std::cout << "egrad : " << jacobians<< std::endl;
@@ -35,7 +36,7 @@ class GradientChecker {
             double next_fval = cost_function->Evaluate(cost_function->Move(x, t * v));
             double delta = std::abs(next_fval - fval - t * Df_v);
             // log(delta) ~= 2.0 * log(t) + const
-            std::cout <<  std::log(t)
+            std::cout << "t : " << t << "," <<  std::log(t)
                       << "," << std::log(delta) << " slope : " << (std::log(delta) - last_delta) / (std::log(t) - last_t) << std::endl;
             last_delta = std::log(delta);
             last_t = std::log(t);
