@@ -9,9 +9,12 @@ class GradientChecker {
     static void Check(std::shared_ptr<RGDFirstOrderInterface> cost_function) {
         Eigen::VectorXd x = Manifold::RandomElement();
         Eigen::VectorXd jacobians = cost_function->Jacobian(x);
+
+        std::cout << "egrad : " << jacobians<< std::endl;
         Eigen::VectorXd gradient = Manifold::Project(
             x, jacobians);
 
+        std::cout << "rgrad : " << gradient << std::endl;
         assert(Manifold::IsTangentSpaceVector(gradient));
 
         double t = 1e-8;

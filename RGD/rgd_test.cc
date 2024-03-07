@@ -100,7 +100,7 @@ struct GradientCheckerExample : public RGDFirstOrderInterface {
 
 TEST(GradientCheckerExample, SphereManifold) {
   Eigen::Matrix3d A = Eigen::Matrix3d::Identity();
-  A = A.transpose() * A;
+  A << 1.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 3.0;
   std::shared_ptr<RGDFirstOrderInterface> cost_function =
       std::make_shared<GradientCheckerExample>(A);
 

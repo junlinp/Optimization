@@ -73,6 +73,7 @@ public:
     AmbientSpaceVector v;
     v.setRandom();
     v.normalized();
+    v << 1.0 ,0.0, 0.0;
     return v;
   }
 
@@ -89,8 +90,8 @@ public:
   static TangentSpaceVector Project(
       const AmbientSpaceVector &x,
       const GeneralJacobianVector &general_gradient) {
-    return Eigen::MatrixXd::Identity(DIM, DIM) -
-           x * x.transpose() * general_gradient;
+    return (Eigen::MatrixXd::Identity(DIM, DIM) -
+           x * x.transpose()) * general_gradient;
   }
 
   static bool IsTangentSpaceVector(const AmbientSpaceVector& x, const TangentSpaceVector& v) {
@@ -192,13 +193,16 @@ public:
 
     Eigen::Matrix3d TxU = v1 * e1 + v2 * e2 + v3 * e3;
 
-    Eigen::Matrix3d Q = X.transpose() * TxU;
+    Eigen::Matrix3d Q = X * TxU;
     //std::cout << "TxU + TxU.transpose() : " << TxU + TxU.transpose() << std::endl;
     return Eigen::Map<TangentSpaceVector>(Q.data());
   }
-  static bool IsTangentSpaceVector(const TangentSpaceVector& v) {
+  static bool IsTangentSpaceVector(const AmbientSpaceVector& x, const TangentSpaceVector& v) {
     Eigen::Map<const Eigen::Matrix3d> U(v.data());
-    return (U + U.transpose()).array().square().sum() < 1e-5;
+    Eigen::Map<const Eigen::Matrix3d> X(x.data());
+
+    Eigen::Matrix3d R = X.transpose() * U;
+    return (R + R.transpose()).array().square().sum() < 1e-5;
   }
 
  private:
