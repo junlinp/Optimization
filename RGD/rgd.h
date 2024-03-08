@@ -10,6 +10,10 @@
 
 bool rgd(const std::shared_ptr<RGDFirstOrderInterface>& cost_function, Eigen::VectorXd* x_init);
 
+bool RiemannianNewtonMethod(
+    const std::shared_ptr<RiemannianSecondOrderInterface>& cost_function,
+    Eigen::VectorXd* x_init);
+
 // template <int Manifold, int residual_dimension> 
 // class CostFunctionFunctor {
 // public:

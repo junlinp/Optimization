@@ -70,7 +70,7 @@ TEST(RGD, Basic) {
   EXPECT_LT(function->Evaluate(x), 1e-5);
 }
 
-struct GradientCheckerExample : public RGDFirstOrderInterface {
+struct GradientCheckerExample : public RiemannianSecondOrderInterface {
 
     public:
       Eigen::Matrix3d symmetry_A;
@@ -96,6 +96,18 @@ struct GradientCheckerExample : public RGDFirstOrderInterface {
                                  const Eigen::VectorXd& direction) const override {
       return SphereManifold<3>::Retraction(x, direction);
     }
+
+    Eigen::MatrixXd Hess(const Eigen::VectorXd& x) const override {
+      Eigen::VectorXd tmp = symmetry_A * x;
+      int n = tmp.rows();
+
+      Eigen::MatrixXd H(n, n);
+
+      for (int i = 0; i < n; i++) {
+        H.col(i) = x(i) * tmp;
+      }
+      return H;
+    }
 };
 
 TEST(GradientCheckerExample, SphereManifold) {
@@ -107,7 +119,32 @@ TEST(GradientCheckerExample, SphereManifold) {
   GradientChecker::Check<SphereManifold<3>>(cost_function);
 }
 
-/*
+
+TEST(rgd, SphereManifold) {
+  Eigen::Matrix3d A = Eigen::Matrix3d::Identity();
+  A << 1.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 3.0;
+  std::shared_ptr<RGDFirstOrderInterface> cost_function =
+      std::make_shared<GradientCheckerExample>(A);
+
+  Eigen::VectorXd x0 = SphereManifold<3>::IdentityElement();
+
+  rgd(cost_function, &x0);
+  EXPECT_LE(std::abs(x0.squaredNorm() - 1.0), 1e-5);
+  EXPECT_LE(std::abs((-x0.dot(A * x0) + 3.0)), 1e-5);
+}
+
+
+TEST(Newton, SphereManifold) {
+  Eigen::Matrix3d A = Eigen::Matrix3d::Identity();
+  A << 1.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 3.0;
+  std::shared_ptr<RiemannianSecondOrderInterface> cost_function =
+      std::make_shared<GradientCheckerExample>(A);
+  Eigen::VectorXd x0 = SphereManifold<3>::IdentityElement();
+  RiemannianNewtonMethod(cost_function, &x0);
+  Eigen::Vector3d tangent;
+  EXPECT_LE(std::abs(x0.squaredNorm() - 1.0), 1e-5);
+  EXPECT_LE(std::abs((-x0.dot(A * x0) + 3.0)), 1e-5);
+}
 class CostFunction {
  public:
   using ResidualVector = Eigen::Matrix<double, 3, 1>;
@@ -130,46 +167,6 @@ class CostFunction {
   }
 };
 
-TEST(LeastQuaresRiemannGredientDescentLinearSearch, EuclideanManifold) {
-  CostFunction functor;
-  Eigen::Vector3d manifold = Eigen::Vector3d::Zero();
-  Eigen::Vector3d step;
-  bool res = LeastQuaresRiemannGredientDescentLinearSearch(functor, manifold, step);
-  EXPECT_TRUE(res);
-  Eigen::Vector3d target;
-  target << 2, -1, 3;
-
-  EXPECT_LT(std::abs(step.cross(target).norm()), 1e-6);
-}
-
-TEST(LeastQuaresRiemannGredientDescentLinearSearch, TwoProductManifold) {
-  CostFunction functor;
-  auto manifold = CreateManifold(EuclideanManifold<2>(), EuclideanManifold<1>());
-  Eigen::Vector3d step;
-  bool res = LeastQuaresRiemannGredientDescentLinearSearch(functor, manifold, step);
-  EXPECT_TRUE(res);
-  Eigen::Vector3d target;
-  target << 2, -1, 3;
-
-  EXPECT_LT(std::abs(step.cross(target).norm()), 1e-6);
-}
-
-TEST(LeastQuaresRiemannGredientDescentLinearSearch, ThreeProductManifold) {
-  CostFunction functor;
-  auto manifold =
-      CreateManifold(EuclideanManifold<1>(), EuclideanManifold<1>(),
-                     EuclideanManifold<1>());
-  Eigen::Vector3d step;
-  bool res = LeastQuaresRiemannGredientDescentLinearSearch(functor, manifold, step);
-  EXPECT_TRUE(res);
-  Eigen::Vector3d target;
-  target << 2, -1, 3;
-
-  EXPECT_LT(std::abs(step.cross(target).norm()), 1e-6);
-}
-*/
-
-/*
 class SpecialEuclideanManifoldCostFunction : public RGDFirstOrderInterface {
  public:
   using ResidualVector = Eigen::Matrix<double, 9 + 3, 1>;
@@ -381,7 +378,7 @@ TEST(SpecialEuclideanManifoldCostFunction, fval) {
  Eigen::Matrix<double, 12, 1> manifold;
  manifold << 1.0, 0.0, 0.0, 0.0, 0.98014571, 0.19827854, 0.0, -0.19827854, 0.98014571, 10.0, 50.0, 100.0;
 
- SpecialEuclideanManifoldCostFunction function(RB1, RA1, TB1, TA1);
+ SpecialEuclideanManifoldCostFunction function(RA1, RB1, TA1, TB1);
  double error = function.Evaluate(manifold);
  
  EXPECT_LE(error ,rotation_error);
@@ -441,6 +438,7 @@ TEST(SpecialEuclideanManifoldCostFunction, gradient) {
  std::cout << J << std::endl;
  EXPECT_LE(diff, 1e-6);
 }
+
 TEST(LeastQuaresRiemannGredientDescentLinearSearch, SepecialEuclideanManifold) {
   Eigen::Matrix3d RA1, RA2;
   Eigen::Matrix3d RB1, RB2; 
@@ -631,5 +629,3 @@ TEST(ceres, ConjugationRtationAveraging) {
   std::cout << RB1 * target_rotation << std::endl;
   std::cout << target_rotation * RA1 << std::endl;
 }
-
-*/

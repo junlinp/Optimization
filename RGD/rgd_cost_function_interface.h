@@ -18,4 +18,10 @@ public:
 
     virtual ~RGDFirstOrderInterface() = default;
 };
+
+class RiemannianSecondOrderInterface :public RGDFirstOrderInterface {
+    public:
+    virtual Eigen::MatrixXd Hess(const Eigen::VectorXd& x) const = 0;
+};
+
 #endif  //  RGB_RGD_COST_FUNCTION_INTERFACE_H_
