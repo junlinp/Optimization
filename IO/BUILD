@@ -1,3 +1,4 @@
+package(default_visibility = ["//visibility:public"])
 load("@rules_flex//flex:flex.bzl", "flex_cc_library")
 load("@rules_bison//bison:bison.bzl", "bison_cc_library")
 load("@rules_bison//bison:bison.bzl", "bison")

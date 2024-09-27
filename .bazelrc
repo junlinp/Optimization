@@ -1,1 +1,3 @@
 build --cxxopt="-std=c++17"
+build --copt=-fdiagnostics-color=always
+build --action_env=BAZEL_CXXOPTS="-std=c++17"

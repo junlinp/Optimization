@@ -1,7 +1,6 @@
 workspace(name="Optimization")
 
 load("//bazel:deps.bzl", "deps")
-
 deps()
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
@@ -21,6 +20,8 @@ http_archive(
 )
 load("@rules_flex//flex:flex.bzl", "flex_register_toolchains")
 flex_register_toolchains()
+
+
 
 http_archive(
     name = "rules_bison",
