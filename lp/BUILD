@@ -9,7 +9,6 @@ hdrs = [
 ],
 deps = [
 "@com_gitlab_libeigen_eigen//:eigen",
-"//IO:mps_format_io",
 ]
 )
 

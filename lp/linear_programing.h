@@ -5,10 +5,9 @@
 #include <vector>
 #include <iostream>
 #include <chrono>
-#include "IO/mps_format_io.h"
 
 
-int ConstructProblem(Problem& problem, Eigen::VectorXd& c, Eigen::SparseMatrix<double>& A, Eigen::VectorXd& b);
+//int ConstructProblem(Problem& problem, Eigen::VectorXd& c, Eigen::SparseMatrix<double>& A, Eigen::VectorXd& b);
 
 void LPSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A,
               const Eigen::VectorXd& b, Eigen::VectorXd& x);

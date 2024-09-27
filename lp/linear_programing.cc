@@ -243,7 +243,7 @@ void ReduceInEqual(Matrix& A, Vector& a, const Matrix& B,const Vector& b) {
 
 
 }
-
+/*
 int ConstructProblem(Problem& problem, Eigen::VectorXd& c, Eigen::SparseMatrix<double>& A, Eigen::VectorXd& b) {
   using SM = Eigen::SparseMatrix<double, Eigen::RowMajor>;
 
@@ -369,6 +369,7 @@ int ConstructProblem(Problem& problem, Eigen::VectorXd& c, Eigen::SparseMatrix<d
 
   return 1;
 }
+*/
 
 /**
  @breif Compute LO Problem with DualLogarithm method.
