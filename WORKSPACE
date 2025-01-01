@@ -49,21 +49,34 @@ rules_proto_dependencies()
 rules_proto_toolchains()
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+http_archive(
+    name = "gflags",
+    urls = ["https://github.com/gflags/gflags/archive/refs/tags/v2.2.2.tar.gz"],
+    strip_prefix = "gflags-2.2.2",
+    sha256 = "34af2f15cf7367513b352bdcd2493ab14ce43692d2dcd9dfc499492966c64dcf",
+)
+
 http_archive(
     name = "com_github_glog",
+    repo_mapping = {
+        "@com_github_gflags_gflags" : "@gflags",
+    },
     sha256 = "f28359aeba12f30d73d9e4711ef356dc842886968112162bc73002645139c39c",
     strip_prefix = "glog-0.4.0",
     url = "https://github.com/google/glog/archive/v0.4.0.tar.gz",
 )
+
 http_archive(
-        name = "eigen",
-        build_file = "@Optimization//third_party:eigen_build.BUILD",
-        sha256 = "7985975b787340124786f092b3a07d594b2e9cd53bbfe5f3d9b1daee7d55f56f",
-        strip_prefix = "eigen-3.3.9",
-        url = "https://gitlab.com/libeigen/eigen/-/archive/3.3.9/eigen-3.3.9.tar.gz",
-    )
+    name = "eigen",
+    build_file = "@Optimization//third_party:eigen_build.BUILD",
+    sha256 = "7985975b787340124786f092b3a07d594b2e9cd53bbfe5f3d9b1daee7d55f56f",
+    strip_prefix = "eigen-3.3.9",
+    url = "https://gitlab.com/libeigen/eigen/-/archive/3.3.9/eigen-3.3.9.tar.gz",
+)
+
 http_archive(
-    name = "ceres_solver",
+    name = "ceres",
     repo_mapping = {
         "@com_github_google_glog": "@com_github_glog",
         "@com_gitlab_libeigen_eigen": "@eigen",
@@ -72,6 +85,14 @@ http_archive(
     strip_prefix = "ceres-solver-2.0.0",
     url = "https://github.com/ceres-solver/ceres-solver/archive/2.0.0.zip",
 )
+
+http_archive(
+    name = "googletest",
+    urls = ["https://github.com/google/googletest/archive/release-1.11.0.tar.gz"],
+    strip_prefix = "googletest-release-1.11.0",
+    sha256 = "b4870bf121ff7795ba20d20bcdd8627b8e088f2d1dab299a031c1034eddc93d5",
+)
+
 
 # Hedron's Compile Commands Extractor for Bazel
 # https://github.com/hedronvision/bazel-compile-commands-extractor
@@ -87,3 +108,4 @@ http_archive(
 load("@hedron_compile_commands//:workspace_setup.bzl", "hedron_compile_commands_setup")
 hedron_compile_commands_setup()
 # bazel run @hedron_compile_commands//:refresh_all
+
