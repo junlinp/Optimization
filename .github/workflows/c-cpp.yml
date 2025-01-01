@@ -17,4 +17,6 @@ jobs:
     - uses: actions/checkout@v3
     - name: Download bazel
       run: wget https://github.com/bazelbuild/bazel/releases/download/8.0.0/bazel_8.0.0-linux-x86_64.deb && sudo dpkg -i bazel_8.0.0-linux-x86_64.deb
+    - name: Unit Test
+      run: bazel test ...
 
