@@ -10,29 +10,11 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [ubuntu-20.04]
+        os: [ubuntu-22.04]
     runs-on: ${{matrix.os}}
 
     steps:
     - uses: actions/checkout@v3
-    - name: Clone Eigen3
-     # You may pin to the exact commit or the version.
-     # uses: kupns-aka-kupa/setup-eigen3@66f8187cf6fdecffecdb8308af9c0d01ec29c36d
-     # uses: kupns-aka-kupa/setup-eigen3@v1
-      run: git clone https://gitlab.com/libeigen/eigen.git
-    - name: Install Eigen3
-      run: cmake -DCMAKE_INSTALL_PREFIX=Eigen3 -B eigen3_build -S ./eigen && cd eigen3_build && make install
-      
-    - name: Googletest installer
-      run: sudo apt-get install libgtest-dev -y
-      
-    - name: Flex and Bison
-      run: sudo apt-get install -y flex bison
-    - name: Ceres-Solver
-      run: sudo apt-get update && sudo apt-get install -y libgoogle-glog-dev wget libgflags-dev libatlas-base-dev libsuitesparse-dev && wget http://ceres-solver.org/ceres-solver-2.1.0.tar.gz && tar zxf ceres-solver-2.1.0.tar.gz && mkdir ceres-bin && cd ceres-bin && cmake ../ceres-solver-2.1.0 && make -j3 && sudo make install
-      
-    - name: cmake configuration
-      run: cmake -DEigen3_DIR=Eigen3 -B build -S .
-    - name: make check
-      run: cd build && make -j3
+    - name: Download bazel
+      run: wget https://github.com/bazelbuild/bazel/releases/download/8.0.0/bazel_8.0.0-linux-x86_64.deb && dpkd -i bazel_8.0.0-linux-x86_64.deb
 
