@@ -7,7 +7,7 @@ cc_library(
 		 "problem.h",
 		  "cost_function_auto.h"
 		  ],
-    deps = ["@com_gitlab_libeigen_eigen//:eigen", "@ceres"]
+    deps = ["@eigen//:eigen", "@ceres"]
 )
 
 cc_library(
@@ -18,7 +18,7 @@ cc_library(
 		"cost_function_auto.h",
 	],
 	deps = [
-		"@com_gitlab_libeigen_eigen//:eigen",
+		"@eigen//:eigen",
 		"@ceres",
 	]
 )
@@ -32,12 +32,12 @@ cc_library(
 	name = "ceres_bal_solver",
 	srcs = ["ceres_bal_solver.cc"],
 	hdrs = [
-		"bal_solver.h",
+	 "bal_solver.h",
 	 "ceres_bal_solver.h",
 	 "problem.h",
 	 "cost_function_auto.h",
 	 ],
-	deps = ["@ceres", "@com_gitlab_libeigen_eigen//:eigen"]
+	deps = ["@ceres", "@eigen//:eigen"]
 )
 
 cc_library(

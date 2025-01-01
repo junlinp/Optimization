@@ -5,7 +5,7 @@ cc_library(
 		"lm.h",
 		  ],
     deps = [
-        "@com_gitlab_libeigen_eigen//:eigen", 
+        "@eigen//:eigen", 
         ]
 )
 
