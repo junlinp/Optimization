@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include <Eigen/Dense>
+#include "rotation_averaging/rotation_averaging.h"
 
 TEST(RotationAveragingTest, BasicFunctionality) {
     // Setup test data
@@ -38,6 +39,17 @@ TEST(RotationAveragingTest, BasicFunctionality) {
     }
 
     Eigen::MatrixXd solution(3 * n, 3);
+
+    std::vector<Eigen::Quaterniond> r;
+    RotationAveraging::averageRotations(relative_rotations,  n, &r);
+
+    std::cout << "Solution finish" << std::endl;
+    for (int i = 0; i < n; i++) {
+      solution.block<3,3>(3 * i, 0) = r[i].toRotationMatrix();
+    }
+    
+
+
     Eigen::MatrixXd gt(3 * n, 3);
     for (int i = 0; i < n; i++) {
         solution.block<3, 3>(3 * i, 0) = Eigen::Quaterniond::UnitRandom().toRotationMatrix();
