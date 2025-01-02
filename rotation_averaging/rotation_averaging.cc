@@ -29,7 +29,7 @@ struct RotationError {
 
 } // namespace
 
-Eigen::Quaterniond RotationAveraging::averageRotations(
+bool RotationAveraging::averageRotations(
     const std::map<std::pair<size_t,size_t>, Eigen::Quaterniond> &relative_rotations,
     size_t num_of_rotations, std::vector<Eigen::Quaterniond> *rotations) {
 
@@ -72,5 +72,5 @@ Eigen::Quaterniond RotationAveraging::averageRotations(
     rotations->push_back(r);
   }
   // Return the average rotation as a quaternion
-  return Eigen::Quaterniond::Identity();
+  return true;
 }

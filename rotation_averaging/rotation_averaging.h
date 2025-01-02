@@ -11,7 +11,7 @@
 
 class RotationAveraging {
 public:
-  static Eigen::Quaterniond averageRotations(
+  static bool averageRotations(
       const std::map<std::pair<size_t, size_t>, Eigen::Quaterniond> &relative_rotations,
       size_t num_of_rotations, std::vector<Eigen::Quaterniond> *rotations);
 };
