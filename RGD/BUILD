@@ -22,3 +22,42 @@
 #         "@ceres//:ceres",
 #     ]
 # )
+
+cc_library(
+    name = "trust_region_subproblem",
+    srcs = ["trust_region_subproblem.cc"],
+    hdrs = [
+        "trust_region_subproblem.h",
+    ],
+    deps = ["@eigen//:eigen"],
+    visibility = ["//visibility:public"],
+)
+
+cc_test(
+    name = "trust_region_subproblem_test",
+    srcs = ["trust_region_subproblem_test.cc"],
+    deps = [
+        ":trust_region_subproblem",
+        "@googletest//:gtest_main",
+    ]
+)
+
+
+cc_library(
+    name = "conjugate_gradient",
+    srcs = ["conjugate_gradient.cc"],
+    hdrs = [
+        "conjugate_gradient.h",
+    ],
+    deps = ["@eigen//:eigen"],
+    visibility = ["//visibility:public"],
+)
+
+cc_test(
+    name = "conjugate_gradient_test",
+    srcs = ["conjugate_gradient_test.cc"],
+    deps = [
+        ":conjugate_gradient",
+        "@googletest//:gtest_main",
+    ]
+)
