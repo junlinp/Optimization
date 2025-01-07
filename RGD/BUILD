@@ -29,7 +29,10 @@ cc_library(
     hdrs = [
         "trust_region_subproblem.h",
     ],
-    deps = ["@eigen//:eigen"],
+    deps = [
+    	 "@eigen//:eigen",
+	 ":conjugate_gradient",
+    ],
     visibility = ["//visibility:public"],
 )
 

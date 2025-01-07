@@ -2,34 +2,43 @@
 #include <limits>
 #include <iostream>
 
-bool TrustRegionSubProblem(const Eigen::MatrixXd &A, const Eigen::VectorXd &B,
+#include "RGD/conjugate_gradient.h"
+
+bool TrustRegionSubProblem(const Eigen::MatrixXd &H, const Eigen::VectorXd &g,
                            double trust_region_radius,
                            Eigen::VectorXd *initial_solution) {
   Eigen::VectorXd p = *initial_solution;
 
   double lambda = 0;
 
-  double gradient_error =
-      ((A + lambda * Eigen::MatrixXd::Identity(p.size(), p.size())) * p + B)
-          .norm();
+  Eigen::VectorXd p_b;
 
-  std::cout << "Init Gradient Error: " << gradient_error << std::endl;
-  while (gradient_error > 1e-6) {
-    auto solution = (A + lambda * Eigen::MatrixXd::Identity(p.size(), p.size())).llt();
-    Eigen::MatrixXd L = solution.matrixL();
-    std::cout << "Matrix L : " << L << std::endl;
-    p = solution.solve(-B);
-    Eigen::VectorXd q = L.triangularView<Eigen::Lower>().solve(p);
-    lambda += (p.dot(p)) / (q.dot(q)) * (p.norm() - trust_region_radius) / trust_region_radius;
+  ConjugateGradient(H, g, 1e-6, &p_b);
 
-    gradient_error =
-        ((A + lambda * Eigen::MatrixXd::Identity(p.size(), p.size())) * p + B)
-            .norm();
+  if (p_b.norm() < trust_region_radius){
+    *initial_solution = p_b;
+    return true;
+  } 
+
+  Eigen::VectorXd p_u = g.dot(g) / g.dot(H * g) * g;
+
+  if (p_u.norm() > trust_region_radius) {
+    *initial_solution = trust_region_radius * p_u / p_u.norm();
+    return true;
   }
-  std::cout << "Gradient Error: " << gradient_error << std::endl;
-  std::cout << "lambda : " << lambda << std::endl;
-  std::cout << "p : " << p.norm() << std::endl;
 
-  *initial_solution = p;
+  double a = (p_b - p_u).squaredNorm();
+  double b = 2.0 * p_u.dot(p_b - p_u);
+  double c = p_u.squaredNorm() - trust_region_radius;
+
+  if (b * b - 4 * a * c < 0) {
+    return false;
+  }
+
+  double tau = (b * b - std::sqrt(4 * a * c)) / 2 / a;
+  if (tau < 0 || tau > 1.0) {
+    return false;
+  }
+  *initial_solution = p_u + tau * (p_b - p_u);
   return true;
 }
