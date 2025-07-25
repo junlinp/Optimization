@@ -16,7 +16,7 @@ class GradientChecker {
             x, jacobians);
 
         std::cout << "rgrad : " << gradient << std::endl;
-        assert(Manifold::IsTangentSpaceVector(gradient));
+        assert(Manifold::IsTangentSpaceVector(x, gradient));
 
         double t = 1e-8;
         double fval = cost_function->Evaluate(x);
@@ -27,7 +27,7 @@ class GradientChecker {
         v.setRandom();
         v = Manifold::Project(x, v);
         v.normalized();
-        assert(Manifold::IsTangentSpaceVector(v));
+        assert(Manifold::IsTangentSpaceVector(x, v));
         double last_delta = 0.0;
         double last_t = 0.0;
 

@@ -244,131 +244,131 @@ void ReduceInEqual(Matrix& A, Vector& a, const Matrix& B,const Vector& b) {
 
 }
 
-int ConstructProblem(Problem& problem, Eigen::VectorXd& c, Eigen::SparseMatrix<double>& A, Eigen::VectorXd& b) {
-  using SM = Eigen::SparseMatrix<double, Eigen::RowMajor>;
+// int ConstructProblem(Problem& problem, Eigen::VectorXd& c, Eigen::SparseMatrix<double>& A, Eigen::VectorXd& b) {
+//   using SM = Eigen::SparseMatrix<double, Eigen::RowMajor>;
 
-  SM M(problem.row_offset.size(), problem.column_offset.size());
-  std::vector<Eigen::Triplet<double>> triple;
-  triple.reserve(problem.row_column_value.size());
-  for(auto&& [row_name, column_name, value] : problem.row_column_value) {
-    int row_index = problem.row_offset[row_name];
-    int column_index = problem.column_offset[column_name];
-    triple.emplace_back(row_index, column_index, value);
-  }
-  M.setFromTriplets(triple.begin(), triple.end());
-  size_t n = M.cols();
-  std::cout << "M Has : " << M.nonZeros() << " nnz" << std::endl;
-  using SV = Eigen::SparseVector<double>;
+//   SM M(problem.row_offset.size(), problem.column_offset.size());
+//   std::vector<Eigen::Triplet<double>> triple;
+//   triple.reserve(problem.row_column_value.size());
+//   for(auto&& [row_name, column_name, value] : problem.row_column_value) {
+//     int row_index = problem.row_offset[row_name];
+//     int column_index = problem.column_offset[column_name];
+//     triple.emplace_back(row_index, column_index, value);
+//   }
+//   M.setFromTriplets(triple.begin(), triple.end());
+//   size_t n = M.cols();
+//   std::cout << "M Has : " << M.nonZeros() << " nnz" << std::endl;
+//   using SV = Eigen::SparseVector<double>;
 
-  SV RHS(M.rows());
-  for (auto&& [row_name, value] : problem.rhs) {
-    int row_index = problem.row_offset[row_name];
-    RHS.insert(row_index) = value;
-  }
-  std::cout << "RHS Has " << RHS.nonZeros() << " nnz" << std::endl;
+//   SV RHS(M.rows());
+//   for (auto&& [row_name, value] : problem.rhs) {
+//     int row_index = problem.row_offset[row_name];
+//     RHS.insert(row_index) = value;
+//   }
+//   std::cout << "RHS Has " << RHS.nonZeros() << " nnz" << std::endl;
 
-  SM UPBounds(problem.up_bounds.size(), n);
-  SV UPBounds_b(problem.up_bounds.size());
-  int count = 0;
-  for ( auto&&[column_name, value] : problem.up_bounds) {
-    int column_index = problem.column_offset[column_name];
-    UPBounds.insert(count, column_index) = 1.0;
-    UPBounds_b.insert(count) = value;
-    count++;
-  }
+//   SM UPBounds(problem.up_bounds.size(), n);
+//   SV UPBounds_b(problem.up_bounds.size());
+//   int count = 0;
+//   for ( auto&&[column_name, value] : problem.up_bounds) {
+//     int column_index = problem.column_offset[column_name];
+//     UPBounds.insert(count, column_index) = 1.0;
+//     UPBounds_b.insert(count) = value;
+//     count++;
+//   }
   
-  SM LOBounds(problem.lower_bounds.size(), n);
-  SV LOBounds_b(problem.lower_bounds.size());
-  count = 0;
-  for (auto&& [column_name, value] : problem.lower_bounds) {
-    int column_index = problem.column_offset[column_name];
-    LOBounds.insert(count, column_index) = 1.0;
-    LOBounds_b.insert(count) = value;
-    count++;
-  }
-  c = M.row(0);
-  SM E = M.middleRows(1, problem.equal_size);
-  SV Eb = RHS.middleRows(1, problem.equal_size);
+//   SM LOBounds(problem.lower_bounds.size(), n);
+//   SV LOBounds_b(problem.lower_bounds.size());
+//   count = 0;
+//   for (auto&& [column_name, value] : problem.lower_bounds) {
+//     int column_index = problem.column_offset[column_name];
+//     LOBounds.insert(count, column_index) = 1.0;
+//     LOBounds_b.insert(count) = value;
+//     count++;
+//   }
+//   c = M.row(0);
+//   SM E = M.middleRows(1, problem.equal_size);
+//   SV Eb = RHS.middleRows(1, problem.equal_size);
 
-  SM L = M.middleRows(1 + problem.equal_size, problem.less_size);
-  SV Lb = RHS.middleRows(1 + problem.equal_size, problem.less_size);
+//   SM L = M.middleRows(1 + problem.equal_size, problem.less_size);
+//   SV Lb = RHS.middleRows(1 + problem.equal_size, problem.less_size);
 
-  SM G = M.middleRows(1 + problem.equal_size + problem.less_size, problem.greater_size);
-  SV Gb = RHS.middleRows(1 + problem.equal_size + problem.less_size, problem.greater_size);
+//   SM G = M.middleRows(1 + problem.equal_size + problem.less_size, problem.greater_size);
+//   SV Gb = RHS.middleRows(1 + problem.equal_size + problem.less_size, problem.greater_size);
 
-  SM IA = -L;
-  SV Ib = -Lb;
-  // IA * x >= Ib
-  ReduceInEqual(IA, Ib, G, Gb);
-  ReduceInEqual(IA, Ib, SM(-UPBounds), SV(-UPBounds_b));
-  ReduceInEqual(IA, Ib, LOBounds, LOBounds_b);
+//   SM IA = -L;
+//   SV Ib = -Lb;
+//   // IA * x >= Ib
+//   ReduceInEqual(IA, Ib, G, Gb);
+//   ReduceInEqual(IA, Ib, SM(-UPBounds), SV(-UPBounds_b));
+//   ReduceInEqual(IA, Ib, LOBounds, LOBounds_b);
 
-  int variable_size = E.cols();
-  int m1 = E.rows(), m2 = IA.rows();
-  Eigen::VectorXd c_dot(2 * variable_size + m2);
-  c_dot << c, -c, Eigen::VectorXd::Zero(m2);
-  c = c_dot;
-  A = Eigen::SparseMatrix<double>(m1 + m2, variable_size * 2 + m2);
+//   int variable_size = E.cols();
+//   int m1 = E.rows(), m2 = IA.rows();
+//   Eigen::VectorXd c_dot(2 * variable_size + m2);
+//   c_dot << c, -c, Eigen::VectorXd::Zero(m2);
+//   c = c_dot;
+//   A = Eigen::SparseMatrix<double>(m1 + m2, variable_size * 2 + m2);
 
-  std::vector<Eigen::Triplet<double>> A_triple;
+//   std::vector<Eigen::Triplet<double>> A_triple;
 
-  for (int k = 0; k < E.outerSize(); k++) {
-    for (Eigen::SparseMatrix<double, Eigen::RowMajor>::InnerIterator it(E, k); it; ++it) {
-      int row = it.row();
-      int col = it.col();
-      double value = it.value();
-      A_triple.emplace_back(row, col, value);
-      A_triple.emplace_back(row, col + variable_size, -value);
-    }
-  }
+//   for (int k = 0; k < E.outerSize(); k++) {
+//     for (Eigen::SparseMatrix<double, Eigen::RowMajor>::InnerIterator it(E, k); it; ++it) {
+//       int row = it.row();
+//       int col = it.col();
+//       double value = it.value();
+//       A_triple.emplace_back(row, col, value);
+//       A_triple.emplace_back(row, col + variable_size, -value);
+//     }
+//   }
 
-  for (int k = 0; k < IA.outerSize(); k++) {
-    for (Eigen::SparseMatrix<double, Eigen::RowMajor>::InnerIterator it(IA,k ); it; ++it) {
-      int row = it.row();
-      int col = it.col();
-      double value = it.value();      
+//   for (int k = 0; k < IA.outerSize(); k++) {
+//     for (Eigen::SparseMatrix<double, Eigen::RowMajor>::InnerIterator it(IA,k ); it; ++it) {
+//       int row = it.row();
+//       int col = it.col();
+//       double value = it.value();      
 
-      A_triple.emplace_back(row + m1, col, value);
-      A_triple.emplace_back(row + m1, col + variable_size, -value);
-    }
-  }
+//       A_triple.emplace_back(row + m1, col, value);
+//       A_triple.emplace_back(row + m1, col + variable_size, -value);
+//     }
+//   }
 
-  for(int i = 0; i < m2; i++) {
-    A_triple.emplace_back(m1 + i, 2 * variable_size+ i, 1.0);
-  }
+//   for(int i = 0; i < m2; i++) {
+//     A_triple.emplace_back(m1 + i, 2 * variable_size+ i, 1.0);
+//   }
 
-  A.setFromTriplets(A_triple.begin(), A_triple.end());
+//   A.setFromTriplets(A_triple.begin(), A_triple.end());
 
-  b = Eigen::VectorXd(E.rows() + IA.rows());
-  b << Eigen::VectorXd(Eb), Eigen::VectorXd(Ib);
+//   b = Eigen::VectorXd(E.rows() + IA.rows());
+//   b << Eigen::VectorXd(Eb), Eigen::VectorXd(Ib);
 
 
-  // min <c, x>
-  // s.t Ex = Eb
-  //     Lb <= Lx
-  //      0 <= Gx <= Gb
+//   // min <c, x>
+//   // s.t Ex = Eb
+//   //     Lb <= Lx
+//   //      0 <= Gx <= Gb
 
-  //  min <c, x1> - <c, x2>
-  // s.t
-  //   Ax1 - Ax2 + 0y = b;
-  //   Gx1 - Gx2 + Iy = d
-  //   y >= 0
-  //   x1, x2 >= 0
-  //   
+//   //  min <c, x1> - <c, x2>
+//   // s.t
+//   //   Ax1 - Ax2 + 0y = b;
+//   //   Gx1 - Gx2 + Iy = d
+//   //   y >= 0
+//   //   x1, x2 >= 0
+//   //   
 
-  // min <c', z>
-  // s.t 
-  //      Mz = q
-  //       z >= 0
-  //            n1  n1
-  //  where M = A  -A  0
-  //            G  -G  I
-  //        z= [x1, x2, y]
-  //        c' = [c, -c, 0]
-  //        q = [b, d];
+//   // min <c', z>
+//   // s.t 
+//   //      Mz = q
+//   //       z >= 0
+//   //            n1  n1
+//   //  where M = A  -A  0
+//   //            G  -G  I
+//   //        z= [x1, x2, y]
+//   //        c' = [c, -c, 0]
+//   //        q = [b, d];
 
-  return 1;
-}
+//   return 1;
+// }
 
 /**
  @breif Compute LO Problem with DualLogarithm method.

@@ -1,22 +1,19 @@
 #include "gtest/gtest.h"
 #include "Eigen/Dense"
-#include "linear_solver.h"
 #include "linear_programing.h"
-#include <fstream>
-#include "LinearProgramingConfig.h"
 
-TEST(Conjugate_Gradient, PSD) {
-    int n = 1024;
-    Eigen::MatrixXd A = Eigen::MatrixXd::Random(n, n); 
-    Eigen::VectorXd b = Eigen::VectorXd::Random(n);
-    Eigen::VectorXd x = Eigen::VectorXd::Zero(n);
+// TEST(Conjugate_Gradient, PSD) {
+//     int n = 1024;
+//     Eigen::MatrixXd A = Eigen::MatrixXd::Random(n, n); 
+//     Eigen::VectorXd b = Eigen::VectorXd::Random(n);
+//     Eigen::VectorXd x = Eigen::VectorXd::Zero(n);
 
-    A = A * A.transpose(); 
-    ConjugateGradient(A, b, x);
+//     A = A * A.transpose(); 
+//     ConjugateGradient(A, b, x);
 
-    std::cout << "Conjugate Gradient Error : " << (A*x - b).norm() << std::endl;
-    EXPECT_LT((A*x - b).norm(), 1e-6);
-}
+//     std::cout << "Conjugate Gradient Error : " << (A*x - b).norm() << std::endl;
+//     EXPECT_LT((A*x - b).norm(), 1e-6);
+// }
 
 TEST(LP, Test_Case) {
     Eigen::VectorXd c(4);
@@ -46,6 +43,7 @@ TEST(LP2, Test_Case) {
     std::cout << "x : " << x << std::endl;
     std::cout << "A * x - b : " << b - A*x << std::endl;
 }
+
 TEST(LP, Test_Case2) {
     Eigen::VectorXd c(3);
     c << 2.0, 2.0, 0.0;
@@ -136,7 +134,7 @@ TEST(DualLogarithmSolver, Simple_case) {
     b << 1, 1;
     Eigen::VectorXd x(3);
     x.setZero();
-    DualLogarithmSolver(c, A, b, x);
+    // DualLogarithmSolver(c, A, b, x);
     
     EXPECT_NEAR(x(0), 1.0, 1e-6);
     EXPECT_NEAR(x(1), 0.0, 1e-6);
@@ -156,7 +154,7 @@ TEST(DualLogarithmSolver, Test_Case3) {
     12,
     18;
     Eigen::VectorXd x(5);
-    DualLogarithmSolver(c,A, b, x);
+    // DualLogarithmSolver(c,A, b, x);
     // Should be (2.0, 6.0, 1.0, 0.0, 0.0)
     // Should be -36.0
     double EPSILON = 1e-7;

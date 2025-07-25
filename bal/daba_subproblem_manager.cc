@@ -17,7 +17,7 @@
 
 namespace {
 template <class T, int DIM>
-void NesteorvStep(const T* previous, T* current, T* target,
+void NesteorvStep(const T *previous, T *current, T *target,
                   double nesteorv_coeeficient) {
   for (int i = 0; i < DIM; i++) {
     target[i] = current[i] + nesteorv_coeeficient * (current[i] - previous[i]);
@@ -25,10 +25,10 @@ void NesteorvStep(const T* previous, T* current, T* target,
 }
 
 class ThreadPool {
- public:
+public:
   ThreadPool(size_t);
   template <class F, class... Args>
-  auto enqueue(F&& f, Args&&... args)
+  auto enqueue(F &&f, Args &&...args)
       -> std::future<std::result_of_t<F(Args...)>> {
     using return_type = std::result_of_t<F(Args...)>;
 
@@ -44,13 +44,13 @@ class ThreadPool {
         throw std::runtime_error("enqueue on stopped ThreadPool");
 
       tasks.emplace([task]() { (*task)(); });
-  }
-  condition.notify_one();
-  return res;
-      };
+    }
+    condition.notify_one();
+    return res;
+  };
   ~ThreadPool();
 
- private:
+private:
   // need to keep track of threads so we can join them
   std::vector<std::thread> workers;
   // the task queue
@@ -73,7 +73,8 @@ inline ThreadPool::ThreadPool(size_t threads) : stop(false) {
           std::unique_lock<std::mutex> lock(this->queue_mutex);
           this->condition.wait(
               lock, [this] { return this->stop || !this->tasks.empty(); });
-          if (this->stop && this->tasks.empty()) return;
+          if (this->stop && this->tasks.empty())
+            return;
           task = std::move(this->tasks.front());
           this->tasks.pop();
         }
@@ -90,12 +91,13 @@ inline ThreadPool::~ThreadPool() {
     stop = true;
   }
   condition.notify_all();
-  for (std::thread& worker : workers) worker.join();
+  for (std::thread &worker : workers)
+    worker.join();
 }
 
 class Profiler {
- public:
-  void StartProfile(const std::string& sample_name) {
+public:
+  void StartProfile(const std::string &sample_name) {
     if (sample_total_count_.find(sample_name) == sample_total_count_.end()) {
       sample_total_count_.insert({sample_name, 0});
       sample_total_time_.insert({sample_name, 0});
@@ -104,7 +106,7 @@ class Profiler {
     sample_start_time_[sample_name] = std::chrono::high_resolution_clock::now();
   }
 
-  void EndProfile(const std::string& sample_name) {
+  void EndProfile(const std::string &sample_name) {
     std::chrono::time_point end_time =
         std::chrono::high_resolution_clock::now();
 
@@ -131,10 +133,10 @@ class Profiler {
   std::map<std::string, int64_t> sample_total_count_;
 };
 
-}  // namespace
+} // namespace
 
-void DABASubProblemManager::Solve(Problem& problem) {
-  for (const auto& [camera_index, camera_parameters] : problem.cameras_) {
+void DABASubProblemManager::Solve(Problem &problem) {
+  for (const auto &[camera_index, camera_parameters] : problem.cameras_) {
     camera_parameters_[camera_index] = camera_parameters.array();
     condition_camera_parameters_[camera_index] = camera_parameters.array();
     previous_camera_parameters_[camera_index] = camera_parameters.array();
@@ -142,7 +144,7 @@ void DABASubProblemManager::Solve(Problem& problem) {
     auxiliary_camera_parameters_[camera_index] = camera_parameters.array();
   }
 
-  for (const auto& [point_index, point_parameters] : problem.points_) {
+  for (const auto &[point_index, point_parameters] : problem.points_) {
     point_parameters_[point_index] = point_parameters.array();
     condition_point_parameters_[point_index] = point_parameters.array();
     previous_point_parameters_[point_index] = point_parameters.array();
@@ -158,13 +160,13 @@ void DABASubProblemManager::Solve(Problem& problem) {
     int64_t camera_index = index_pair.first;
     int64_t landmark_index = index_pair.second;
 
-    ceres::CostFunction* camera_costfunction =
+    ceres::CostFunction *camera_costfunction =
         new ceres::AutoDiffCostFunction<CameraSurrogateCostFunction, 3, 9>(
             new CameraSurrogateCostFunction(
                 condition_camera_parameters_[camera_index].data(),
                 condition_point_parameters_[landmark_index].data(), uv.u(),
                 uv.v()));
-    ceres::CostFunction* point_costfunction =
+    ceres::CostFunction *point_costfunction =
         new ceres::AutoDiffCostFunction<LandmarkSurrogatecostFunction, 3, 3>(
             new LandmarkSurrogatecostFunction(
                 condition_camera_parameters_[camera_index].data(),
@@ -195,7 +197,7 @@ void DABASubProblemManager::Solve(Problem& problem) {
   double q = 1.0;
   double eta = 0.8;
   {
-    for (auto& functor : ray_cost_functions) {
+    for (auto &functor : ray_cost_functions) {
       c += functor();
     }
   }
@@ -204,11 +206,11 @@ void DABASubProblemManager::Solve(Problem& problem) {
     double function_error = 0.0;
     double t_next = (std::sqrt(4 * t * t + 1) + 1) * 0.5;
     if (iteration == 1) {
-        t_next = 1.0;
+      t_next = 1.0;
     }
 
     profiler.StartProfile("Update y");
-    for (auto& [camera_index, condition_parameters] :
+    for (auto &[camera_index, condition_parameters] :
          condition_camera_parameters_) {
       auto current_parameters = CameraParam::ConvertLieAlgrebaToRotationMatrix(
           current_camera_parameters_.at(camera_index));
@@ -217,7 +219,7 @@ void DABASubProblemManager::Solve(Problem& problem) {
       auto auxiliary_parameters =
           CameraParam::ConvertLieAlgrebaToRotationMatrix(
               auxiliary_camera_parameters_.at(camera_index));
-      
+
       std::array<double, 15> condition_p;
       for (int i = 0; i < 15; i++) {
         condition_p[i] =
@@ -230,11 +232,11 @@ void DABASubProblemManager::Solve(Problem& problem) {
       camera_parameters_[camera_index] = condition_parameters;
     }
 
-    for (auto& [point_index, condition_parameters] :
+    for (auto &[point_index, condition_parameters] :
          condition_point_parameters_) {
-      auto& current_parameters = current_point_parameters_.at(point_index);
-      auto& previous_parameters = previous_point_parameters_.at(point_index);
-      auto& auxiliary_parameters = auxiliary_point_parameters_.at(point_index);
+      auto &current_parameters = current_point_parameters_.at(point_index);
+      auto &previous_parameters = previous_point_parameters_.at(point_index);
+      auto &auxiliary_parameters = auxiliary_point_parameters_.at(point_index);
 
       for (int i = 0; i < 3; i++) {
         condition_parameters[i] =
@@ -259,16 +261,15 @@ void DABASubProblemManager::Solve(Problem& problem) {
       ceres::Solve(options, &(point_cost_functions.at(p_i)), &summary);
     };
 
-
     profiler.StartProfile("Solve z=f(y)");
     {
       ThreadPool thread_pool(std::thread::hardware_concurrency());
 
-      for (auto& [camera_index, problem] : camera_cost_functions) {
+      for (auto &[camera_index, problem] : camera_cost_functions) {
         thread_pool.enqueue(camera_functor, camera_index);
       }
 
-      for (auto& [point_index, problem] : point_cost_functions) {
+      for (auto &[point_index, problem] : point_cost_functions) {
         thread_pool.enqueue(point_functor, point_index);
       }
     }
@@ -277,7 +278,7 @@ void DABASubProblemManager::Solve(Problem& problem) {
     double auxiliary_error = 0.0;
     profiler.StartProfile("Compute f(z)");
     {
-      for (auto& functor : ray_cost_functions) {
+      for (auto &functor : ray_cost_functions) {
         auxiliary_error += functor();
       }
     }
@@ -286,10 +287,10 @@ void DABASubProblemManager::Solve(Problem& problem) {
 
     profiler.StartProfile("Compute norm(z - y)");
     double normal_diff = 0.0;
-    for (auto& [camera_index, auxiliary_parameters] :
+    for (auto &[camera_index, auxiliary_parameters] :
          auxiliary_camera_parameters_) {
       auxiliary_parameters = camera_parameters_[camera_index];
-      const auto& condition_parameters =
+      const auto &condition_parameters =
           condition_camera_parameters_[camera_index];
       for (int i = 0; i < 9; i++) {
         normal_diff +=
@@ -297,10 +298,10 @@ void DABASubProblemManager::Solve(Problem& problem) {
       }
     }
 
-    for (auto& [point_index, auxiliary_parameters] :
+    for (auto &[point_index, auxiliary_parameters] :
          auxiliary_point_parameters_) {
       auxiliary_parameters = point_parameters_[point_index];
-      const auto& condition_parameters =
+      const auto &condition_parameters =
           condition_point_parameters_[point_index];
       for (int i = 0; i < 3; i++) {
         normal_diff +=
@@ -312,24 +313,27 @@ void DABASubProblemManager::Solve(Problem& problem) {
               << " c - delta * normal_diff : " << c - delta * normal_diff
               << std::endl;
     if (auxiliary_error <= c - delta * normal_diff) {
-        profiler.StartProfile("x_next = z");
-        for (auto& [camera_index, previous_parameters] : previous_camera_parameters_) {
-            previous_parameters = current_camera_parameters_[camera_index];
-            current_camera_parameters_[camera_index] = camera_parameters_[camera_index];
-        }
-        for (auto& [point_index, previous_parameters] : previous_point_parameters_) {
-            previous_parameters = current_point_parameters_[point_index];
-            current_point_parameters_[point_index] = point_parameters_[point_index];
-        }
-        profiler.EndProfile("x_next = z");
+      profiler.StartProfile("x_next = z");
+      for (auto &[camera_index, previous_parameters] :
+           previous_camera_parameters_) {
+        previous_parameters = current_camera_parameters_[camera_index];
+        current_camera_parameters_[camera_index] =
+            camera_parameters_[camera_index];
+      }
+      for (auto &[point_index, previous_parameters] :
+           previous_point_parameters_) {
+        previous_parameters = current_point_parameters_[point_index];
+        current_point_parameters_[point_index] = point_parameters_[point_index];
+      }
+      profiler.EndProfile("x_next = z");
     } else {
-        profiler.StartProfile("v = min f(x)");
-      for (auto& [camera_index, current_parameters] :
+      profiler.StartProfile("v = min f(x)");
+      for (auto &[camera_index, current_parameters] :
            current_camera_parameters_) {
         condition_camera_parameters_[camera_index] = current_parameters;
         camera_parameters_[camera_index] = current_parameters;
       }
-      for (auto& [point_index, current_parameters] :
+      for (auto &[point_index, current_parameters] :
            current_point_parameters_) {
         condition_point_parameters_[point_index] = current_parameters;
         point_parameters_[point_index] = current_parameters;
@@ -337,11 +341,11 @@ void DABASubProblemManager::Solve(Problem& problem) {
       {
         ThreadPool thread_pool(std::thread::hardware_concurrency());
 
-        for (auto& [camera_index, problem] : camera_cost_functions) {
+        for (auto &[camera_index, problem] : camera_cost_functions) {
           thread_pool.enqueue(camera_functor, camera_index);
         }
 
-        for (auto& [point_index, problem] : point_cost_functions) {
+        for (auto &[point_index, problem] : point_cost_functions) {
           thread_pool.enqueue(point_functor, point_index);
         }
       }
@@ -349,32 +353,43 @@ void DABASubProblemManager::Solve(Problem& problem) {
       profiler.StartProfile("f(v)");
       double temp_error = 0.0;
       {
-        for (auto& functor : ray_cost_functions) {
+        for (auto &functor : ray_cost_functions) {
           temp_error += functor();
         }
       }
       profiler.EndProfile("f(v)");
 
       if (auxiliary_error <= temp_error) {
-        for (auto& [camera_index, previous_parameters] : previous_camera_parameters_) {
-            previous_parameters = current_camera_parameters_[camera_index];
-            current_camera_parameters_[camera_index] = auxiliary_camera_parameters_[camera_index];
+        for (auto &[camera_index, previous_parameters] :
+             previous_camera_parameters_) {
+          previous_parameters = current_camera_parameters_[camera_index];
+          current_camera_parameters_[camera_index] =
+              auxiliary_camera_parameters_[camera_index];
         }
-        for (auto& [point_index, previous_parameters] : previous_point_parameters_) {
-            previous_parameters = current_point_parameters_[point_index];
-            current_point_parameters_[point_index] = auxiliary_point_parameters_[point_index];
+        for (auto &[point_index, previous_parameters] :
+             previous_point_parameters_) {
+          previous_parameters = current_point_parameters_[point_index];
+          current_point_parameters_[point_index] =
+              auxiliary_point_parameters_[point_index];
         }
       } else {
-        std::cout << iteration << " correct step is not a  good extrapolation" << std::endl;
-        for (auto& [camera_index, previous_parameters] : previous_camera_parameters_) {
-            previous_parameters = current_camera_parameters_[camera_index];
-            current_camera_parameters_[camera_index] = camera_parameters_[camera_index];
-            auxiliary_camera_parameters_[camera_index] = camera_parameters_[camera_index];
+        std::cout << iteration << " correct step is not a  good extrapolation"
+                  << std::endl;
+        for (auto &[camera_index, previous_parameters] :
+             previous_camera_parameters_) {
+          previous_parameters = current_camera_parameters_[camera_index];
+          current_camera_parameters_[camera_index] =
+              camera_parameters_[camera_index];
+          auxiliary_camera_parameters_[camera_index] =
+              camera_parameters_[camera_index];
         }
-        for (auto& [point_index, previous_parameters] : previous_point_parameters_) {
-            previous_parameters = current_point_parameters_[point_index];
-            current_point_parameters_[point_index] = point_parameters_[point_index];
-            auxiliary_point_parameters_[point_index] = point_parameters_[point_index];
+        for (auto &[point_index, previous_parameters] :
+             previous_point_parameters_) {
+          previous_parameters = current_point_parameters_[point_index];
+          current_point_parameters_[point_index] =
+              point_parameters_[point_index];
+          auxiliary_point_parameters_[point_index] =
+              point_parameters_[point_index];
         }
         function_error = temp_error;
       }
@@ -383,11 +398,13 @@ void DABASubProblemManager::Solve(Problem& problem) {
     double q_next = eta * q + 1;
     c = (eta * q * c + function_error) / q_next;
     q = q_next;
-    std::cout << iteration << " function cost:" << function_error
-              << std::endl;
+    std::cout << iteration << " function cost:" << function_error << std::endl;
 
-    if (std::abs(function_error - last_error) / function_error < function_tolerance) {
-      std::cout << "Function tolerance reached." << std::abs(function_error - last_error) / function_error << "quit early." << std::endl;
+    if (std::abs(function_error - last_error) / function_error <
+        function_tolerance) {
+      std::cout << "Function tolerance reached."
+                << std::abs(function_error - last_error) / function_error
+                << "quit early." << std::endl;
       break;
     }
     last_error = function_error;
