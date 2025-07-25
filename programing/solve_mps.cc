@@ -43,6 +43,9 @@ int main(int argc, char* argv[]) {
 
     Eigen::VectorXd x(n);
     x.setRandom();
+    // data from
+    // https://plato.asu.edu/ftp/lptestset/
+    // 
     std::cout << "Trivial solution (all variables at lower bound):\n";
     std::cout << "Objective value: " << c.transpose() * x << std::endl;
     std::cout << "Solving LP" << std::endl;
