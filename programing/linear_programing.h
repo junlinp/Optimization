@@ -1,4 +1,3 @@
-//#define EIGEN_USE_LAPACKE
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 
@@ -445,17 +444,18 @@ void FullNTStepIMP(const Vector& C,const Matrix& A, const Vector& b,Vector& X, C
     Vector X0 = X, S0 = S;
     Eigen::VectorXd y0 = y;
     size_t epoch = 0;
-    std::cout << "Here" << std::endl;
     //std::cout << "L(X) : " << ConicSpace::L(X) << std::endl;
     std::cout << "Trace(X, S) : " << ConicSpace::Trace(X, S) << std::endl;
     std::cout << "Primal Constraint Norm : " << (A * X - b).norm() << std::endl;
     std::cout << "Dual constraint Norm : " << ConicSpace::Norm(C - A.transpose() * y - S) << std::endl;
     while (Max(ConicSpace::Trace(X, S), (A*X - b).norm(), ConicSpace::Norm(C - A.transpose() * y - S)) > epsilon) {
         // Feasible Step
-        std::cout << "Epoch : " <<  ++epoch << std::endl;
-        std::cout << "Trace(X, S) : " << ConicSpace::Trace(X, S) << std::endl;
-        std::cout << "Primal Constraint Norm : " << (A * X - b).norm() << std::endl;
-        std::cout << "Dual constraint Norm : " << ConicSpace::Norm(C - A.transpose() * y - S) << std::endl;
+        std::cout << "==============================" << std::endl;
+        std::cout << "Epoch: " << ++epoch << std::endl;
+        std::cout << "Trace(X, S):                " << ConicSpace::Trace(X, S) << std::endl;
+        std::cout << "Primal Constraint Norm:     " << (A * X - b).norm() << std::endl;
+        std::cout << "Dual Constraint Norm:       " << ConicSpace::Norm(C - A.transpose() * y - S) << std::endl;
+        std::cout << "==============================" << std::endl;
 
         auto [delta_X, delta_y, delta_S] = FeasibleStep(C, A, b, X0, y0, S0, X, S, delta, mu0, theta, ConicSpace{});
         X += delta_X;
@@ -464,8 +464,8 @@ void FullNTStepIMP(const Vector& C,const Matrix& A, const Vector& b,Vector& X, C
 
         delta = (1- theta) * delta;
         double mu = delta * mu0;
-        std::cout << "X is feasible : " << ConicSpace::Varify(X) << std::endl;
-        std::cout << "S is feasible : " << ConicSpace::Varify(S) << std::endl;
+        std::cout << "X is feasible: " << (ConicSpace::Varify(X) ? "Yes" : "No") << std::endl;
+        std::cout << "S is feasible: " << (ConicSpace::Varify(S) ? "Yes" : "No") << std::endl;
 
         Vector v = ComputeV<ConicSpace>(X, S, mu);
         double delta_distance =  0.5 * ConicSpace::Norm(ConicSpace::Inverse(v) - v); 
@@ -473,26 +473,27 @@ void FullNTStepIMP(const Vector& C,const Matrix& A, const Vector& b,Vector& X, C
         
         // Centering Path
         while (delta_distance > 0.5) {
-            std::cout << "Delta Distance : " << delta_distance << std::endl; 
+            std::cout << "Centering Step Delta Distance : " << delta_distance << std::endl; 
             auto [delta_X, delta_y, delta_S] = CenteringStep(A, X, S, mu, ConicSpace{});
             X += delta_X;
             y += delta_y;
             S += delta_S;
-            std::cout << "X is feasible : " << ConicSpace::Varify(X) << std::endl;
-            std::cout << "S is feasible : " << ConicSpace::Varify(S) << std::endl;
+            std::cout << "Centering Step X is feasible: " << (ConicSpace::Varify(X) ? "Yes" : "No") << std::endl;
+            std::cout << "Centering Step S is feasible: " << (ConicSpace::Varify(S) ? "Yes" : "No") << std::endl;
             Vector v = ComputeV<ConicSpace>(X, S, mu);
             delta_distance =  0.5 * ConicSpace::Norm(ConicSpace::Inverse(v) - v); 
         }
-        //std::cout << "y : " << y << std::endl;
-   
-        //std::printf("Norm of Primal Constraint %f\n", (A * X - b).norm());
-        //std::printf("Norm of Dual Constraint %f\n", ConicSpace::Norm(C - A.transpose() * y - S));
-        //std::printf("Gap : %f\n", ConicSpace::Trace(X, S));
-        
+        std::cout << "==============================" << std::endl;
+        std::cout << "Epoch: " << ++epoch << std::endl;
+        std::cout << "function value: " << C.transpose() * X << std::endl;
+        std::cout << "==============================" << std::endl;
     }
-
-    //std::printf("Norm of Primal Constraint %f\n", Norm(A * X.ToLinearVector() - b));
-    //std::printf("Norm of Dual Constraint %f\n", Norm(C - A.transpose() * y - S.ToLinearVector()));
+    std::cout << "==============================" << std::endl;
+    std::cout << "Final Epoch: " << epoch << std::endl;
+    std::cout << "Trace(X, S):                " << ConicSpace::Trace(X, S) << std::endl;
+    std::cout << "Primal Constraint Norm:     " << (A * X - b).norm() << std::endl;
+    std::cout << "Dual Constraint Norm:       " << ConicSpace::Norm(C - A.transpose() * y - S) << std::endl;
+    std::cout << "==============================" << std::endl;
 }
 
 void SDPIIMP(const Eigen::VectorXd& C, const Eigen::SparseMatrix<double>& A, const Eigen::VectorXd& b, Eigen::VectorXd& X);

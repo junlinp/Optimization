@@ -1,11 +1,7 @@
 #include "linear_programing.h"
-
 #include <assert.h>
-
 #include "iostream"
 #include <cmath>
-
-#include "Eigen/SVD"
 
 namespace internal {
 using namespace Eigen;
@@ -816,7 +812,7 @@ void LPSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A,
         s_max = std::min(s_max, z(i) / -delta_z(i));
       }
     }
-    double s = 0.95 * s_max;
+    double s = 0.50 * s_max;
     x = x + s * delta_x;
     y = y + s * delta_y;
     z = z + s * delta_z;

@@ -1,10 +1,19 @@
-
 #include "mps_problem.h"
 #include <iostream>
 #include <Eigen/Dense>
 #include "linear_programing.h"
 
 int main(int argc, char* argv[]) {
+    // Configure Eigen threading
+    #ifdef EIGEN_USE_OPENMP
+        // Set number of threads for Eigen
+        Eigen::setNbThreads(omp_get_max_threads());
+        std::cout << "Eigen configured to use " << Eigen::nbThreads() << " threads" << std::endl;
+        std::cout << "OpenMP max threads: " << omp_get_max_threads() << std::endl;
+    #else
+        std::cout << "Eigen running single-threaded (OpenMP not available)" << std::endl;
+    #endif
+    
     if (argc < 2) {
         std::cerr << "Usage: " << argv[0] << " <file.mps>\n";
         return 1;
@@ -49,10 +58,9 @@ int main(int argc, char* argv[]) {
     std::cout << "Trivial solution (all variables at lower bound):\n";
     std::cout << "Objective value: " << c.transpose() * x << std::endl;
     std::cout << "Solving LP" << std::endl;
-    std::cout << "Filled c" << std::endl;
-    std::cout << "Filled A" << std::endl;
-    std::cout << "Filled b" << std::endl;
-    LPSolver(c, A, b, x);
+    // LPSolver don't converge for this problem
+    // LPSolver(c, A, b, x);
+    LPSolver2(c, A, b, x);
     std::cout << "Solved LP" << std::endl;
     std::cout << "Objective value: " << c.transpose() * x << std::endl;
     // std::cout << "Solution: " << x.transpose() << std::endl;
