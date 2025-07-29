@@ -54,10 +54,12 @@ TEST(LP, Test_Case2) {
     Eigen::VectorXd x(3);
 
     LPSolver(c, A, b, x);
-    // Should be (1.5, 1.5, 0.0)
-    std::cout << "x : " << x << std::endl;
-    // Should be 6.0
-    std::cout << "Optimal Value : " << c.dot(x) << std::endl;
+    // x Should be (1.5, 1.5, 0.0)
+    // Optimal Value Should be 6.0
+    EXPECT_NEAR(x(0), 1.5, 1e-6);
+    EXPECT_NEAR(x(1), 1.5, 1e-6);
+    EXPECT_NEAR(x(2), 0.0, 1e-6);
+    EXPECT_NEAR(c.dot(x), 6.0, 1e-6);
 }
 
 TEST(LP2, Test_Case2) {

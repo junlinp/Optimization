@@ -769,37 +769,39 @@ void LPSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A,
   size_t max_iterator = 1024;
   double mu = 10.0;
   double sigma = 0.9;
-  Eigen::MatrixXd zero_m_m(m, m), zero_m_n(m, n), zero_n_n(n, n);
-  for (size_t i = 0; i < m; i++) {
-    for (size_t j = 0; j < m; j++) {
-      zero_m_m(i, j) = 0.0;
-    }
-    for (size_t k = 0; k < n; k++) {
-      zero_m_n(i, k) = 0.0;
-    }
-  }
-
-  for (size_t i = 0; i < n; i++) {
-    for (size_t j = 0; j < n; j++) {
-      zero_n_n(i, j) = 0.0;
-    }
-  }
-
   Eigen::VectorXd e = Eigen::VectorXd::Ones(n);
   std::cout << "Iterator\t\tPrimal\t\tDual" << std::endl;
+  typedef Eigen::Triplet<double> T;
+  
   for (size_t iter = 0; iter < max_iterator; iter++) {
-    Eigen::MatrixXd Z = z.asDiagonal();
-    Eigen::MatrixXd X = x.asDiagonal();
-    Eigen::MatrixXd H(2 * n + m, 2 * n + m);
-    H << A, zero_m_m, zero_m_n, zero_n_n, A.transpose(),
-        Eigen::MatrixXd::Identity(n, n), Z, zero_m_n.transpose(), X;
-    // std::cout << "H : " << H << std::endl;
+    // Eigen::MatrixXd Z = z.asDiagonal();
+    // Eigen::MatrixXd X = x.asDiagonal();
+    // Eigen::MatrixXd H(2 * n + m, 2 * n + m);
+    // H << A, zero_m_m, zero_m_n, 
+    //      zero_n_n, A.transpose(), Eigen::MatrixXd::Identity(n, n),
+    //      Z, zero_m_n.transpose(), X;
+    std::vector<T> coefficients;
+    for (size_t row = 0; row < m; row++) {
+      for (size_t col = 0; col < n; col++) {
+        coefficients.push_back(T(row, col, A(row, col)));
+        coefficients.push_back(T(m + col, n + row, A(row, col)));
+      }
+    }
+    for (size_t i = 0; i < n; i++) {
+      coefficients.push_back(T(m + i, m + n + i, 1.0));
+      coefficients.push_back(T(m + n + i,  i, z(i)));
+      coefficients.push_back(T(m + n + i,  m + n + i, x(i)));
+    }
+
+    Eigen::SparseMatrix<double> H(2 * n + m, 2 * n + m);
+    H.setFromTriplets(coefficients.begin(), coefficients.end());
+
     Eigen::VectorXd B(2 * n + m);
     double t = (1 - sigma / std::sqrt(n)) * x.dot(z) / n;
-    B << b - A * x, c - z - A.transpose() * y, t * e - X * Z * e;
-
-    Eigen::VectorXd delta = H.fullPivLu().solve(B);
-    // std::cout << "delta : " << delta << std::endl;
+    B << b - A * x, c - z - A.transpose() * y, t * e - x.cwiseProduct( z.cwiseProduct(e));
+    Eigen::ConjugateGradient<Eigen::SparseMatrix<double>, Eigen::Lower> solver;
+    solver.compute(H);
+    Eigen::VectorXd delta = solver.solve(B);
     Eigen::VectorXd delta_x = delta.block(0, 0, n, 1);
     Eigen::VectorXd delta_y = delta.block(n, 0, m, 1);
     Eigen::VectorXd delta_z = delta.block(n + m, 0, n, 1);
@@ -814,21 +816,10 @@ void LPSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A,
         s_max = std::min(s_max, z(i) / -delta_z(i));
       }
     }
-    // std::cout << "s_max : " << s_max << std::endl;
-    // Eigen::JacobiSVD<Eigen::MatrixXd> svd;
-    // svd.compute(X.inverse() * x.asDiagonal());
-    // std::cout << "Largest EigenValue : " << svd.singularValues().maxCoeff()
-    // << std::endl; Eigen::JacobiSVD<Eigen::MatrixXd> svd2;
-    // svd2.compute(Z.inverse() * z.asDiagonal());
-    // s_max = 1.0 / std::max(svd.singularValues().maxCoeff(),
-    // svd2.singularValues().maxCoeff());
     double s = 0.95 * s_max;
-
-    // std::cout << "Step : " << s << std::endl;
     x = x + s * delta_x;
     y = y + s * delta_y;
     z = z + s * delta_z;
-    // std::cout << "Function : " << c.dot(x) << std::endl;
     mu *= 0.01;
     std::cout << iter << "\t\t" << (A * x - b).norm() << "\t\t"
               << (c - z - A.transpose() * y).norm() << std::endl;
