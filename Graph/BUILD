@@ -5,7 +5,6 @@ cc_library(
     hdrs = ["graph_normal_cut.h", "graph.h"],
     deps = [
         "@eigen//:eigen",
-        "@openblas//:openblas",
     ],
     visibility = ["//visibility:public"],
     )

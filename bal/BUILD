@@ -10,7 +10,6 @@ cc_library(
     deps = [
         "@eigen//:eigen", 
         "@ceres",
-        "@openblas//:openblas",
     ]
 )
 
@@ -24,13 +23,13 @@ cc_library(
 	deps = [
 		"@eigen//:eigen",
 		"@ceres",
-		"@openblas//:openblas",
 	]
 )
 cc_library(
 	name = "bal_solver",
 	srcs = [],
 	hdrs = ["bal_solver.h"],
+	visibility = ["//visibility:public"],
 )
 
 cc_library(
@@ -45,8 +44,8 @@ cc_library(
 	deps = [
         "@ceres", 
         "@eigen//:eigen",
-        "@openblas//:openblas",
-    ]
+    ],
+	visibility = ["//visibility:public"],
 )
 
 cc_library(
@@ -69,7 +68,8 @@ cc_library(
 		"problem",
 		"daba_subproblem",
 		"//Graph:graph",
-		]
+		],
+	visibility = ["//visibility:public"],
 )
 
 cc_library(

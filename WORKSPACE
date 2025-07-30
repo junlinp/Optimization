@@ -93,15 +93,7 @@ http_archive(
     sha256 = "7b42b4d6ed48810c5362c265a17faebe90dc2373c885e5216439d37927f02926",
 )
 
-# OpenBLAS configuration
-load("@bazel_tools//tools/build_defs/repo:local_repository.bzl", "local_repository")
-
-# Use system OpenBLAS (installed via apt in CI)
-local_repository(
-    name = "openblas",
-    path = "/usr",
-    build_file = "@Optimization//third_party:openblas_build.BUILD",
-)
+# OpenBLAS configuration - using system libraries directly
 
 # Hedron's Compile Commands Extractor for Bazel
 # https://github.com/hedronvision/bazel-compile-commands-extractor

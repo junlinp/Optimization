@@ -497,3 +497,9 @@ void FullNTStepIMP(const Vector& C,const Matrix& A, const Vector& b,Vector& X, C
 }
 
 void SDPIIMP(const Eigen::VectorXd& C, const Eigen::SparseMatrix<double>& A, const Eigen::VectorXd& b, Eigen::VectorXd& X);
+
+// Helper functions for sparse matrix operations
+Eigen::SparseMatrix<double> ToMatrix(const Eigen::SparseVector<double>& v);
+Eigen::SparseMatrix<double> ComputeADAT(const Eigen::SparseMatrix<double>& A, const Eigen::VectorXd& w);
+Eigen::SparseMatrix<double> ComputeADAT(const std::vector<Eigen::SparseMatrix<double>>& mat_A, const Eigen::VectorXd& w);
+Eigen::SparseMatrix<double> ComputeADAT(const Eigen::SparseMatrix<double>& A, const Eigen::MatrixXd& D);

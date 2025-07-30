@@ -9,7 +9,6 @@ cc_library(
     ],
     deps = [
 	     "@eigen//:eigen",
-         "@openblas//:openblas",
     ],
     visibility = ["//visibility:public"],
 )
