@@ -35,8 +35,6 @@ jobs:
         ./bazel-7.4.1-linux-x86_64 --version
         pkg-config --modversion openblas
         pkg-config --modversion lapack
-    - name: Build with Bazel
-      run: ./bazel-7.4.1-linux-x86_64 build //...
     - name: Unit Test
-      run: ./bazel-7.4.1-linux-x86_64 test //...
+      run: ./bazel-7.4.1-linux-x86_64 test ...
 
