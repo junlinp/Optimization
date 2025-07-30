@@ -6,7 +6,7 @@ cc_library(
 		"unsupported/Eigen/*",
 		"unsupported/Eigen/**/*.h",
 	]),
-	defines = [],
+	defines = ["EIGEN_USE_BLAS=1"],
 	includes = ["."],
 	copts = ["-std=c++17"],
 	visibility = ["//visibility:public"]

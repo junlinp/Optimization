@@ -2,9 +2,9 @@ cmake_minimum_required(VERSION 3.13)
 project(Optimization)
 set (CMAKE_EXPORT_COMPILE_COMMANDS True) 
 
-# Configure Eigen3 with Apple Accelerate BLAS on macOS
+# Configure Eigen3 with BLAS support
 if(APPLE)
-    # Find Accelerate framework
+    # Configure Eigen3 with Apple Accelerate BLAS on macOS
     find_library(ACCELERATE_LIBRARY Accelerate)
     if(ACCELERATE_LIBRARY)
         message(STATUS "Found Apple Accelerate framework: ${ACCELERATE_LIBRARY}")
@@ -16,6 +16,61 @@ if(APPLE)
         include_directories(SYSTEM /System/Library/Frameworks/Accelerate.framework/Versions/Current/Frameworks/vecLib.framework/Headers)
     else()
         message(WARNING "Apple Accelerate framework not found, using default Eigen3 configuration")
+    endif()
+elseif(UNIX AND NOT APPLE)
+    # Configure BLAS for Linux systems
+    # Try to find BLAS libraries in order of preference: OpenBLAS, Intel MKL, ATLAS, generic BLAS
+    
+    # First try OpenBLAS
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(OPENBLAS QUIET openblas)
+    endif()
+    
+    if(OPENBLAS_FOUND)
+        message(STATUS "Found OpenBLAS: ${OPENBLAS_LIBRARIES}")
+        set(BLAS_LIBRARIES ${OPENBLAS_LIBRARIES})
+        set(BLAS_INCLUDE_DIRS ${OPENBLAS_INCLUDE_DIRS})
+        set(BLAS_LINK_FLAGS ${OPENBLAS_LDFLAGS})
+        set(EIGEN_USE_BLAS ON)
+        add_compile_definitions(EIGEN_USE_BLAS=1)
+        message(STATUS "Using OpenBLAS for Eigen3")
+    else()
+        # Try Intel MKL
+        find_package(MKL QUIET)
+        if(MKL_FOUND)
+            message(STATUS "Found Intel MKL: ${MKL_LIBRARIES}")
+            set(BLAS_LIBRARIES ${MKL_LIBRARIES})
+            set(BLAS_INCLUDE_DIRS ${MKL_INCLUDE_DIRS})
+            set(EIGEN_USE_BLAS ON)
+            add_compile_definitions(EIGEN_USE_BLAS=1)
+            message(STATUS "Using Intel MKL for Eigen3")
+        else()
+            # Try ATLAS
+            find_library(ATLAS_LIBRARY atlas)
+            find_library(CBLAS_LIBRARY cblas)
+            if(ATLAS_LIBRARY AND CBLAS_LIBRARY)
+                message(STATUS "Found ATLAS: ${ATLAS_LIBRARY}, ${CBLAS_LIBRARY}")
+                set(BLAS_LIBRARIES ${ATLAS_LIBRARY} ${CBLAS_LIBRARY})
+                set(EIGEN_USE_BLAS ON)
+                add_compile_definitions(EIGEN_USE_BLAS=1)
+                message(STATUS "Using ATLAS for Eigen3")
+            else()
+                # Try generic BLAS
+                find_library(BLAS_LIBRARY blas)
+                find_library(LAPACK_LIBRARY lapack)
+                if(BLAS_LIBRARY AND LAPACK_LIBRARY)
+                    message(STATUS "Found generic BLAS/LAPACK: ${BLAS_LIBRARY}, ${LAPACK_LIBRARY}")
+                    set(BLAS_LIBRARIES ${BLAS_LIBRARY} ${LAPACK_LIBRARY})
+                    set(EIGEN_USE_BLAS ON)
+                    add_compile_definitions(EIGEN_USE_BLAS=1)
+                    message(STATUS "Using generic BLAS/LAPACK for Eigen3")
+                else()
+                    message(WARNING "No BLAS library found. Eigen3 will use its own implementations.")
+                    message(WARNING "For better performance, install OpenBLAS: sudo apt-get install libopenblas-dev")
+                endif()
+            endif()
+        endif()
     endif()
 endif()
 
@@ -29,6 +84,8 @@ add_compile_options(-g)
 add_compile_options(-Wall -Wextra -pedantic )
 if(APPLE)
     add_compile_options(-O3 -march=native -ffast-math -Wno-deprecated-declarations)
+elseif(UNIX AND NOT APPLE)
+    add_compile_options(-O3 -march=native -ffast-math)
 endif()
 
 
@@ -72,7 +129,7 @@ endif()
 #Eigen3::Eigen)
 
 
-# Link Accelerate framework if available
+# Link BLAS libraries if available
 if(APPLE AND ACCELERATE_LIBRARY)
     # Create a global target for Accelerate that can be linked by subprojects
     add_library(Accelerate::Accelerate INTERFACE IMPORTED)
@@ -85,6 +142,28 @@ if(APPLE AND ACCELERATE_LIBRARY)
         INTERFACE_COMPILE_DEFINITIONS "EIGEN_USE_BLAS=1"
     )
     message(STATUS "Accelerate framework configured for use with Eigen3")
+elseif(UNIX AND NOT APPLE AND BLAS_LIBRARIES)
+    # Create a global target for BLAS that can be linked by subprojects
+    add_library(BLAS::BLAS INTERFACE IMPORTED)
+    
+    set_target_properties(BLAS::BLAS PROPERTIES
+        INTERFACE_LINK_LIBRARIES "${BLAS_LIBRARIES}"
+        INTERFACE_COMPILE_DEFINITIONS "EIGEN_USE_BLAS=1"
+    )
+    
+    if(BLAS_INCLUDE_DIRS)
+        set_target_properties(BLAS::BLAS PROPERTIES
+            INTERFACE_INCLUDE_DIRECTORIES "${BLAS_INCLUDE_DIRS}"
+        )
+    endif()
+    
+    if(BLAS_LINK_FLAGS)
+        set_target_properties(BLAS::BLAS PROPERTIES
+            INTERFACE_LINK_FLAGS "${BLAS_LINK_FLAGS}"
+        )
+    endif()
+    
+    message(STATUS "BLAS libraries configured for use with Eigen3")
 endif()
 
 add_subdirectory(bal)

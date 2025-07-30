@@ -11,7 +11,7 @@ MPSProblem read_mps(const std::string& filename) {
     if (!file) throw std::runtime_error("Cannot open file");
     std::string line;
     while (std::getline(file, line)) {
-        std::cout << line << std::endl;
+        // std::cout << line << std::endl;
         if (line.empty() || line[0] == '*') continue;
         if (line.find("NAME") == 0) { section = "NAME"; continue; }
         if (line.find("ROWS") == 0) { section = "ROWS"; continue; }

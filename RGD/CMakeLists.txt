@@ -7,9 +7,11 @@ find_package(Ceres REQUIRED)
 add_library(${PROJECT_NAME}_lib ${PROJECT_NAME}.cc)
 target_link_libraries(${PROJECT_NAME}_lib PUBLIC Eigen3::Eigen)
 
-# Link Accelerate framework if available (for Eigen3 BLAS support)
+# Link BLAS libraries if available
 if(APPLE AND TARGET Accelerate::Accelerate)
     target_link_libraries(${PROJECT_NAME}_lib PUBLIC Accelerate::Accelerate)
+elseif(UNIX AND NOT APPLE AND TARGET BLAS::BLAS)
+    target_link_libraries(${PROJECT_NAME}_lib PUBLIC BLAS::BLAS)
 endif()
 find_package(GTest REQUIRED)
 #add_executable(${PROJECT_NAME}_unittest ${PROJECT_NAME}_test.cc)

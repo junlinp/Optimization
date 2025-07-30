@@ -18,9 +18,11 @@ FetchContent_MakeAvailable(googletest)
 add_library(linear_programing linear_programing.cc mps_reader.cc)
 target_link_libraries(linear_programing PUBLIC Eigen3::Eigen)
 
-# Link Accelerate framework if available (for Eigen3 BLAS support)
+# Link BLAS libraries if available
 if(APPLE AND TARGET Accelerate::Accelerate)
     target_link_libraries(linear_programing PUBLIC Accelerate::Accelerate)
+elseif(UNIX AND NOT APPLE AND TARGET BLAS::BLAS)
+    target_link_libraries(linear_programing PUBLIC BLAS::BLAS)
 endif()
 
 if(OpenMP_CXX_FOUND)
@@ -30,17 +32,21 @@ endif()
 add_executable(linear_programing_test linear_solver_test.cpp)
 target_link_libraries(linear_programing_test PUBLIC linear_programing gtest)
 
-# Link Accelerate framework if available (for Eigen3 BLAS support)
+# Link BLAS libraries if available
 if(APPLE AND TARGET Accelerate::Accelerate)
     target_link_libraries(linear_programing_test PRIVATE Accelerate::Accelerate)
+elseif(UNIX AND NOT APPLE AND TARGET BLAS::BLAS)
+    target_link_libraries(linear_programing_test PRIVATE BLAS::BLAS)
 endif()
 
 add_executable(solve_mps solve_mps.cc)
 target_link_libraries(solve_mps PRIVATE linear_programing)
 
-# Link Accelerate framework if available (for Eigen3 BLAS support)
+# Link BLAS libraries if available
 if(APPLE AND TARGET Accelerate::Accelerate)
     target_link_libraries(solve_mps PRIVATE Accelerate::Accelerate)
+elseif(UNIX AND NOT APPLE AND TARGET BLAS::BLAS)
+    target_link_libraries(solve_mps PRIVATE BLAS::BLAS)
 endif()
 
 if(OpenMP_CXX_FOUND)

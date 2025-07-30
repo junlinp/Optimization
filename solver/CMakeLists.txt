@@ -6,9 +6,11 @@ find_package(Eigen3 REQUIRED)
 add_library(solver lm.cc)
 target_link_libraries(solver PUBLIC Eigen3::Eigen)
 
-# Link Accelerate framework if available (for Eigen3 BLAS support)
+# Link BLAS libraries if available
 if(APPLE AND TARGET Accelerate::Accelerate)
     target_link_libraries(solver PUBLIC Accelerate::Accelerate)
+elseif(UNIX AND NOT APPLE AND TARGET BLAS::BLAS)
+    target_link_libraries(solver PUBLIC BLAS::BLAS)
 endif()
 
 find_package(GTest REQUIRED)
