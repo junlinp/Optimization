@@ -32,6 +32,7 @@ cc_library(
     deps = [
     	 "@eigen//:eigen",
 	 ":conjugate_gradient",
+         "@openblas//:openblas",
     ],
     visibility = ["//visibility:public"],
 )
@@ -52,7 +53,10 @@ cc_library(
     hdrs = [
         "conjugate_gradient.h",
     ],
-    deps = ["@eigen//:eigen"],
+    deps = [
+        "@eigen//:eigen",
+        "@openblas//:openblas",
+    ],
     visibility = ["//visibility:public"],
 )
 

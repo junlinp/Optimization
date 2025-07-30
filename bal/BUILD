@@ -7,7 +7,11 @@ cc_library(
 		 "problem.h",
 		  "cost_function_auto.h"
 		  ],
-    deps = ["@eigen//:eigen", "@ceres"]
+    deps = [
+        "@eigen//:eigen", 
+        "@ceres",
+        "@openblas//:openblas",
+    ]
 )
 
 cc_library(
@@ -20,6 +24,7 @@ cc_library(
 	deps = [
 		"@eigen//:eigen",
 		"@ceres",
+		"@openblas//:openblas",
 	]
 )
 cc_library(
@@ -37,7 +42,11 @@ cc_library(
 	 "problem.h",
 	 "cost_function_auto.h",
 	 ],
-	deps = ["@ceres", "@eigen//:eigen"]
+	deps = [
+        "@ceres", 
+        "@eigen//:eigen",
+        "@openblas//:openblas",
+    ]
 )
 
 cc_library(

@@ -5,8 +5,9 @@ cc_library(
 		"lm.h",
 		  ],
     deps = [
-        "@eigen//:eigen", 
-        ]
+        "@eigen//:eigen",
+        "@openblas//:openblas",
+    ]
 )
 
 cc_test(

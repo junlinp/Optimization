@@ -8,7 +8,8 @@ cc_library(
         "algebra_operation.h",
     ],
     deps = [
-	     "@eigen",
+	     "@eigen//:eigen",
+         "@openblas//:openblas",
     ],
     visibility = ["//visibility:public"],
 )

@@ -14,7 +14,8 @@ cc_library(
 	srcs = ["rotation_averaging.cc"],
 	hdrs = ["rotation_averaging.h"],
 	deps = [
-	     "@eigen",
+	     "@eigen//:eigen",
 	     "@ceres",
+	     "@openblas//:openblas",
 	]
 )

@@ -1064,10 +1064,10 @@ Eigen::SparseMatrix<double> ComputeADAT(const std::vector<Eigen::SparseMatrix<do
     using T = Eigen::Triplet<double>;
     std::vector<T> triplet;
     
-    for(decltype(mat_A.size()) col = 0; col < mat_A.size(); col++) {
-        for(decltype(col) row = 0; row <= col; row++) {
+    for(size_t col = 0; col < mat_A.size(); col++) {
+        for(size_t row = 0; row <= col; row++) {
             double value = mat_A[row].cwiseProduct(Mat_wAw[col]).sum();
-            triplet.push_back(T{row, col, value});
+            triplet.push_back(T{static_cast<int>(row), static_cast<int>(col), value});
         }
     }
     res.setFromTriplets(triplet.begin(), triplet.end());
