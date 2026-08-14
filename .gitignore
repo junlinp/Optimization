@@ -37,3 +37,8 @@ build/*
 # Bazel
 /bazel-*
 /MODULE.bazel.lock
+
+# Super-resolution example outputs
+/lena_lr.png
+/lena_bicubic_4k.png
+/lena_sr_4k.png
