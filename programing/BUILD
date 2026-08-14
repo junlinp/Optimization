@@ -32,4 +32,15 @@ cc_test(
         "@googletest//:gtest",
     ],
 )
+
+cc_test(
+    name = "mps_benchmark_test",
+    srcs = ["mps_benchmark_test.cc"],
+    data = glob(["testdata/*.mps"]),
+    deps = [
+        ":linear_programing",
+        "@googletest//:gtest_main",
+    ],
+)
+
  
