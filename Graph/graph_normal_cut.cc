@@ -2,6 +2,28 @@
 
 #include <iostream>
 #include <limits>
+#include <utility>
+
+namespace {
+template <class VectorT>
+std::pair<GraphNormalCut::AIndex, GraphNormalCut::BIndex>
+PartitionByMean(const VectorT &solution) {
+  const double mean = solution.mean();
+  GraphNormalCut::AIndex a_set;
+  GraphNormalCut::BIndex b_set;
+  for (Eigen::Index i = 0; i < solution.size(); ++i) {
+    if (solution(i) > mean) {
+      a_set.push_back(static_cast<size_t>(i));
+    } else {
+      b_set.push_back(static_cast<size_t>(i));
+    }
+  }
+  if (a_set.size() > b_set.size()) {
+    std::swap(a_set, b_set);
+  }
+  return {a_set, b_set};
+}
+} // namespace
 
 std::pair<GraphNormalCut::AIndex, GraphNormalCut::BIndex>
 GraphNormalCut::Cut(const Graph &graph) const {
@@ -16,23 +38,11 @@ GraphNormalCut::Cut(const Graph &graph) const {
 
   Eigen::MatrixXd A = D_sqrt.inverse() * (D - W) * D_sqrt.inverse();
 
-  Eigen::MatrixXd V = A.bdcSvd(Eigen::ComputeFullV).matrixV();
-
-  Eigen::VectorXd solution = V.row(n - 2);
-
-  double mean = solution.mean();
-
-  AIndex a_set;
-  BIndex b_set;
-  for (size_t i = 0; i < n; i++) {
-
-    if (solution(i) > mean) {
-      a_set.push_back(i);
-    } else {
-      b_set.push_back(i);
-    }
-  }
-  return {a_set, b_set};
+  Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> eigen_solver(A);
+  // Eigenvalues are ascending; col(0) is the trivial all-ones mode, col(1) is
+  // the Fiedler vector.
+  Eigen::VectorXd solution = eigen_solver.eigenvectors().col(1);
+  return PartitionByMean(solution);
 }
 
 template<class VectorT>
@@ -78,15 +88,24 @@ Eigen::VectorXf RayleighQuotient(
       assert(H.rows() == H.cols());
       size_t max_iter = 128;
       size_t iter = 0;
-      Eigen::VectorXf x = Eigen::VectorXf::Random(n);
-      x = x - x.dot(eigenvector_with_smallest_eigenvalue) * eigenvector_with_smallest_eigenvalue;
+      Eigen::VectorXf s = eigenvector_with_smallest_eigenvalue;
+      if (s.norm() > 0.0f) {
+        s.normalize();
+      }
+      Eigen::VectorXf x = Eigen::VectorXf::LinSpaced(n, 0.0f, 1.0f);
+      x = x - x.dot(s) * s;
+      if (x.norm() == 0.0f) {
+        x.setOnes();
+        x = x - x.dot(s) * s;
+      }
+      x.normalize();
       std::cout << "Initial H * x : " << (H*x).norm() << std::endl;
       // minimum f(x)  = 0.5 * x' * H * x
       while(iter++ < max_iter) {
         Eigen::VectorXf grad_x = H * x;
 
         // Project gradient to tangent space
-        Eigen::VectorXf riemann_grad_x = RiemannProject(x, grad_x, eigenvector_with_smallest_eigenvalue);
+        Eigen::VectorXf riemann_grad_x = RiemannProject(x, grad_x, s);
 
         // stopping criterion
         if (riemann_grad_x.norm() < 1e-5 * n) {
@@ -152,23 +171,13 @@ GraphNormalCut::SparseCut(const Graph& graph) const {
   std::cout << "A" << std::endl;
 
 
-  Eigen::VectorXf eigen_vector_with_small_eigenvalue = d_sqrt;
+  Eigen::VectorXf eigen_vector_with_small_eigenvalue = d_sqrt.normalized();
   // Fiedler vector
   // Rayleigh quotient
   Eigen::VectorXf solution = RayleighQuotient(A, eigen_vector_with_small_eigenvalue);
   std::cout << "solution" << std::endl;
-  double mean = solution.mean();
-
-  AIndex a_set;
-  BIndex b_set;
-  for (size_t i = 0; i < n; i++) {
-
-    if (solution(i) > mean) {
-      a_set.push_back(i);
-    } else {
-      b_set.push_back(i);
-    }
-  }
-  std::cout << a_set.size() << " : " << b_set.size() << std::endl;
-  return {a_set, b_set};
+  auto partition = PartitionByMean(solution);
+  std::cout << partition.first.size() << " : " << partition.second.size()
+            << std::endl;
+  return partition;
 }
