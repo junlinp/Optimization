@@ -2,6 +2,11 @@
 #include <assert.h>
 #include "iostream"
 #include <cmath>
+#include <limits>
+#include <tuple>
+
+#include <Eigen/SparseCholesky>
+#include <Eigen/SparseLU>
 
 namespace internal {
 using namespace Eigen;
@@ -1009,6 +1014,299 @@ void SymmetricSolver(const Eigen::MatrixXd C,
 void LPSolver2(const Eigen::VectorXd& c, const Eigen::MatrixXd& A,
                const Eigen::VectorXd& b, Eigen::VectorXd& x) {
       FullNTStepIMP(c, A, b, x, OrthantSpace{});
+}
+
+namespace {
+
+Eigen::SparseMatrix<double> ScaleSparseColumns(const Eigen::SparseMatrix<double>& A,
+                                               const Eigen::VectorXd& scale) {
+    Eigen::SparseMatrix<double> B = A;
+    for (int k = 0; k < B.outerSize(); ++k) {
+        for (Eigen::SparseMatrix<double>::InnerIterator it(B, k); it; ++it) {
+            it.valueRef() *= scale(it.col());
+        }
+    }
+    return B;
+}
+
+Eigen::VectorXd SolveNormalEquations(const Eigen::SparseMatrix<double>& ADAT,
+                                     const Eigen::VectorXd& rhs) {
+    Eigen::SparseMatrix<double> M = ADAT;
+    M.makeCompressed();
+    Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> ldlt;
+    ldlt.compute(M);
+    if (ldlt.info() == Eigen::Success) {
+        Eigen::VectorXd dy = ldlt.solve(rhs);
+        if (ldlt.info() == Eigen::Success && dy.allFinite()) {
+            return dy;
+        }
+    }
+    for (int i = 0; i < M.rows(); ++i) {
+        M.coeffRef(i, i) += 1e-10;
+    }
+    M.makeCompressed();
+    Eigen::SparseLU<Eigen::SparseMatrix<double>> lu;
+    lu.compute(M);
+    if (lu.info() == Eigen::Success) {
+        Eigen::VectorXd dy = lu.solve(rhs);
+        if (lu.info() == Eigen::Success && dy.allFinite()) {
+            return dy;
+        }
+    }
+    return Eigen::MatrixXd(M).ldlt().solve(rhs);
+}
+
+double OrthantStepScale(const Eigen::VectorXd& X, const Eigen::VectorXd& dX,
+                        const Eigen::VectorXd& S, const Eigen::VectorXd& dS,
+                        double tau = 0.995) {
+    double alpha = 1.0;
+    for (int i = 0; i < X.size(); ++i) {
+        if (dX(i) < 0.0) {
+            alpha = std::min(alpha, -tau * X(i) / dX(i));
+        }
+        if (dS(i) < 0.0) {
+            alpha = std::min(alpha, -tau * S(i) / dS(i));
+        }
+    }
+    return std::max(0.0, std::min(1.0, alpha));
+}
+
+Eigen::VectorXd OrthantScalingW(const Eigen::VectorXd& X, const Eigen::VectorXd& S) {
+    const double eps = 1e-14;
+    Eigen::VectorXd X_safe = X.cwiseMax(eps);
+    Eigen::VectorXd S_safe = S.cwiseMax(eps);
+    Eigen::VectorXd X_sqrt = OrthantSpace::Sqrt(X_safe);
+    Eigen::VectorXd temp =
+        OrthantSpace::Sqrt(OrthantSpace::Inverse(OrthantSpace::P(X_sqrt, X_sqrt, S_safe)));
+    Eigen::VectorXd w = OrthantSpace::P(X_sqrt, X_sqrt, temp);
+    return w.cwiseMax(1e-8).cwiseMin(1e8);
+}
+
+}  // namespace
+
+std::tuple<Eigen::VectorXd, Eigen::VectorXd, Eigen::VectorXd>
+FeasibleStep(const Eigen::VectorXd& C, const Eigen::SparseMatrix<double>& A,
+             const Eigen::VectorXd& b0, const Eigen::VectorXd& X0,
+             const Eigen::VectorXd& y0, const Eigen::VectorXd& S0,
+             const Eigen::VectorXd& X, const Eigen::VectorXd& S,
+             double delta, double mu0, double theta, OrthantSpace) {
+    using Eigen::SparseMatrix;
+    using Eigen::VectorXd;
+    VectorXd w = OrthantScalingW(X, S);
+    VectorXd w2 = w.array().square().matrix();
+    VectorXd w_inv = w.cwiseInverse();
+
+    VectorXd rb = b0 - A * X0;
+    VectorXd rc = C - VectorXd(A.transpose() * y0) - S0;
+    const double mu = delta * mu0;
+    const double sqrt_mu = std::sqrt(mu);
+    const double inverse_sqrt_mu =
+        1.0 / (sqrt_mu + std::numeric_limits<double>::epsilon());
+
+    VectorXd v = inverse_sqrt_mu * w.cwiseProduct(S);
+    VectorXd prim = theta * delta * rb;
+    VectorXd dual = inverse_sqrt_mu * theta * delta * w.cwiseProduct(rc);
+    VectorXd comp = ((1 - theta) * OrthantSpace::Inverse(v) - v);
+
+    SparseMatrix<double> ADAT = ScaleSparseColumns(A, w2) * A.transpose();
+    ADAT.makeCompressed();
+    VectorXd rhs = prim + sqrt_mu * (A * w.cwiseProduct(dual - comp));
+
+    VectorXd dy = SolveNormalEquations(ADAT, rhs);
+    VectorXd At_dy = A.transpose() * dy;
+    VectorXd b_dy = inverse_sqrt_mu * w.cwiseProduct(At_dy);
+    VectorXd dx = b_dy - dual + comp;
+    VectorXd ds = dual - b_dy;
+
+    VectorXd delta_x = sqrt_mu * w.cwiseProduct(dx);
+    VectorXd delta_s = sqrt_mu * w_inv.cwiseProduct(ds);
+    const double tau = (rb.norm() > 1e-3) ? 0.5 : 0.995;
+    const double alpha = OrthantStepScale(X, delta_x, S, delta_s, tau);
+    if (alpha < 1.0) {
+        delta_x *= alpha;
+        dy *= alpha;
+        delta_s *= alpha;
+    }
+    return {delta_x, dy, delta_s};
+}
+
+std::tuple<Eigen::VectorXd, Eigen::VectorXd, Eigen::VectorXd>
+CenteringStep(const Eigen::SparseMatrix<double>& A, const Eigen::VectorXd& X,
+              const Eigen::VectorXd& S, double mu, OrthantSpace) {
+    using Eigen::SparseMatrix;
+    using Eigen::VectorXd;
+    VectorXd w = OrthantScalingW(X, S);
+    VectorXd w2 = w.array().square().matrix();
+    VectorXd w_inv = w.cwiseInverse();
+    const double sqrt_mu = std::sqrt(mu);
+    const double inverse_sqrt_mu = 1.0 / sqrt_mu;
+    VectorXd v = inverse_sqrt_mu * w.cwiseProduct(S);
+    VectorXd comp = OrthantSpace::Inverse(v) - v;
+    SparseMatrix<double> ADAT = ScaleSparseColumns(A, w2) * A.transpose();
+    ADAT.makeCompressed();
+    VectorXd rhs = sqrt_mu * (A * w.cwiseProduct(-comp));
+    VectorXd dy = SolveNormalEquations(ADAT, rhs);
+    VectorXd b_dy = inverse_sqrt_mu * w.cwiseProduct(VectorXd(A.transpose() * dy));
+    VectorXd dx = b_dy + comp;
+    VectorXd ds = -b_dy;
+    VectorXd delta_x = sqrt_mu * w.cwiseProduct(dx);
+    VectorXd delta_s = sqrt_mu * w_inv.cwiseProduct(ds);
+    const double alpha = OrthantStepScale(X, delta_x, S, delta_s);
+    if (alpha < 1.0) {
+        delta_x *= alpha;
+        dy *= alpha;
+        delta_s *= alpha;
+    }
+    return {delta_x, dy, delta_s};
+}
+
+static Eigen::VectorXd PrimalFeasibilityStep(const Eigen::SparseMatrix<double>& A,
+                                      const Eigen::VectorXd& x,
+                                      const Eigen::VectorXd& b) {
+    Eigen::VectorXd r = A * x - b;
+    Eigen::VectorXd x2 = x.array().square().matrix();
+    Eigen::SparseMatrix<double> ADAT = ScaleSparseColumns(A, x2) * A.transpose();
+    ADAT.makeCompressed();
+    Eigen::VectorXd dy = SolveNormalEquations(ADAT, r);
+    return -x2.cwiseProduct(Eigen::VectorXd(A.transpose() * dy));
+}
+
+static void RuizEquilibrate(Eigen::SparseMatrix<double>* A, Eigen::VectorXd* b,
+                     Eigen::VectorXd* c, Eigen::VectorXd* col_scale) {
+    using Eigen::SparseMatrix;
+    using Eigen::VectorXd;
+    const int m = static_cast<int>(A->rows());
+    const int n = static_cast<int>(A->cols());
+    col_scale->setOnes(n);
+    VectorXd row_scale = VectorXd::Ones(m);
+    for (int iter = 0; iter < 8; ++iter) {
+        VectorXd row_inf = VectorXd::Zero(m);
+        VectorXd col_inf = VectorXd::Zero(n);
+        for (int k = 0; k < A->outerSize(); ++k) {
+            for (SparseMatrix<double>::InnerIterator it(*A, k); it; ++it) {
+                const double mag = std::abs(it.value());
+                row_inf(it.row()) = std::max(row_inf(it.row()), mag);
+                col_inf(it.col()) = std::max(col_inf(it.col()), mag);
+            }
+        }
+        for (int i = 0; i < m; ++i) {
+            row_inf(i) = std::max(row_inf(i), std::abs((*b)(i)));
+        }
+        for (int j = 0; j < n; ++j) {
+            col_inf(j) = std::max(col_inf(j), std::abs((*c)(j)));
+        }
+        for (int i = 0; i < m; ++i) {
+            row_inf(i) = std::sqrt(std::max(row_inf(i), 1e-16));
+        }
+        for (int j = 0; j < n; ++j) {
+            col_inf(j) = std::sqrt(std::max(col_inf(j), 1e-16));
+        }
+        for (int k = 0; k < A->outerSize(); ++k) {
+            for (SparseMatrix<double>::InnerIterator it(*A, k); it; ++it) {
+                it.valueRef() /= row_inf(it.row()) * col_inf(it.col());
+            }
+        }
+        b->array() /= row_inf.array();
+        c->array() /= col_inf.array();
+        row_scale.array() /= row_inf.array();
+        col_scale->array() /= col_inf.array();
+    }
+}
+
+void LPSolver3(const Eigen::VectorXd& c, const Eigen::SparseMatrix<double>& A,
+               const Eigen::VectorXd& b, Eigen::VectorXd& x) {
+    Eigen::SparseMatrix<double> As = A;
+    As.makeCompressed();
+    Eigen::VectorXd bs = b;
+    Eigen::VectorXd cs = c;
+    Eigen::VectorXd col_scale;
+    RuizEquilibrate(&As, &bs, &cs, &col_scale);
+
+    const double zeta = 5.0;
+    const double epsilon = 1e-7;
+    const double theta = 1.0 / std::sqrt(2.0 * static_cast<double>(cs.size()));
+    Eigen::VectorXd xs = OrthantSpace::IdentityWithPurterbed(cs.size(), zeta);
+    Eigen::VectorXd S = xs;
+    Eigen::VectorXd y = Eigen::VectorXd::Zero(As.rows());
+    Eigen::VectorXd best_x = xs;
+    double best_score = std::numeric_limits<double>::infinity();
+    size_t epoch = 0;
+    const size_t max_epoch = 400;
+    while (epoch < max_epoch) {
+        const double prim = (As * xs - bs).norm();
+        const double dual = OrthantSpace::Norm(cs - As.transpose() * y - S);
+        const double gap = OrthantSpace::Trace(xs, S);
+        const double score = prim + gap;
+        if (score < best_score && xs.allFinite()) {
+            best_score = score;
+            best_x = xs;
+        }
+        if (score <= epsilon || (prim <= 1e-6 && gap <= 1e-6 && dual <= 1e-4)) {
+            break;
+        }
+        if (epoch > 40 && gap < 1e-8 && prim > 1e-3) {
+            break;
+        }
+        ++epoch;
+        if (prim > 1e-4) {
+            Eigen::VectorXd dxf = PrimalFeasibilityStep(As, xs, bs);
+            const double alpha =
+                OrthantStepScale(xs, dxf, S, Eigen::VectorXd::Zero(S.size()), 0.9);
+            xs += alpha * dxf;
+            xs = xs.cwiseMax(1e-8);
+            if (epoch == 1 || epoch % 50 == 0) {
+                std::cout << "LPSolver3 epoch " << epoch << " feas obj=" << cs.dot(xs)
+                          << " prim=" << (As * xs - bs).norm()
+                          << " gap=" << xs.dot(S) << std::endl;
+            }
+            continue;
+        }
+        const double theta_k = theta;
+        const double mu =
+            std::max(xs.dot(S) / static_cast<double>(xs.size()), 1e-12);
+        auto [dx, dy, ds] =
+            FeasibleStep(cs, As, bs, xs, y, S, xs, S, 1.0, mu, theta_k, OrthantSpace{});
+        xs += dx;
+        y += dy;
+        S += ds;
+        const double xmin = (prim > 1e-3) ? 1e-6 : 1e-14;
+        xs = xs.cwiseMax(xmin);
+        S = S.cwiseMax(xmin);
+        if (prim <= 1e-3) {
+            const double mu_target = std::max((1.0 - theta_k) * mu, 1e-12);
+            Eigen::VectorXd v = ComputeV<OrthantSpace>(xs, S, mu_target);
+            double delta_distance =
+                0.5 * OrthantSpace::Norm(OrthantSpace::Inverse(v) - v);
+            int centering = 0;
+            while (delta_distance > 0.5 && centering < 16 && xs.allFinite() &&
+                   S.allFinite()) {
+                auto [cx, cy, cs_step] =
+                    CenteringStep(As, xs, S, mu_target, OrthantSpace{});
+                xs += cx;
+                y += cy;
+                S += cs_step;
+                xs = xs.cwiseMax(xmin);
+                S = S.cwiseMax(xmin);
+                v = ComputeV<OrthantSpace>(xs, S, mu_target);
+                delta_distance =
+                    0.5 * OrthantSpace::Norm(OrthantSpace::Inverse(v) - v);
+                ++centering;
+            }
+        }
+        if (epoch == 1 || epoch % 50 == 0) {
+            std::cout << "LPSolver3 epoch " << epoch << " obj=" << cs.dot(xs)
+                      << " prim=" << (As * xs - bs).norm()
+                      << " gap=" << xs.dot(S) << std::endl;
+        }
+        if (!xs.allFinite() || !S.allFinite()) {
+            xs = best_x;
+            break;
+        }
+    }
+    if ((As * xs - bs).norm() > (As * best_x - bs).norm()) {
+        xs = best_x;
+    }
+    x = col_scale.cwiseProduct(xs);
 }
 
 
