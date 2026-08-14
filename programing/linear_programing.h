@@ -4,6 +4,7 @@
 #include <vector>
 #include <iostream>
 #include <chrono>
+#include <tuple>
 
 
 // int ConstructProblem(Problem& problem, Eigen::VectorXd& c, Eigen::SparseMatrix<double>& A, Eigen::VectorXd& b);
@@ -18,6 +19,8 @@ void LPSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A,
  *     x >= 0
  **/
 void LPSolver2(const Eigen::VectorXd& c, const Eigen::MatrixXd& A,
+               const Eigen::VectorXd& b, Eigen::VectorXd& x);
+void LPSolver3(const Eigen::VectorXd& c, const Eigen::SparseMatrix<double>& A,
                const Eigen::VectorXd& b, Eigen::VectorXd& x);
 /**
  * @brief solve the robust LP Problem
@@ -413,6 +416,17 @@ Eigen::VectorXd ComputeV(const Eigen::VectorXd& X,const Eigen::VectorXd& S,doubl
   return inverse_sqrt_mu * ConicSpace::P(w_sqrt, S, w_sqrt);
 }
 
+std::tuple<Eigen::VectorXd, Eigen::VectorXd, Eigen::VectorXd>
+FeasibleStep(const Eigen::VectorXd& C, const Eigen::SparseMatrix<double>& A,
+             const Eigen::VectorXd& b0, const Eigen::VectorXd& X0,
+             const Eigen::VectorXd& y0, const Eigen::VectorXd& S0,
+             const Eigen::VectorXd& X, const Eigen::VectorXd& S,
+             double delta, double mu0, double theta, OrthantSpace);
+
+std::tuple<Eigen::VectorXd, Eigen::VectorXd, Eigen::VectorXd>
+CenteringStep(const Eigen::SparseMatrix<double>& A, const Eigen::VectorXd& X,
+              const Eigen::VectorXd& S, double mu, OrthantSpace);
+
 template<class Matrix, class Vector, class ConicSpace>
 void FullNTStepIMP(const Vector& C,const Matrix& A, const Vector& b,Vector& X, ConicSpace) {
     //
@@ -444,11 +458,12 @@ void FullNTStepIMP(const Vector& C,const Matrix& A, const Vector& b,Vector& X, C
     Vector X0 = X, S0 = S;
     Eigen::VectorXd y0 = y;
     size_t epoch = 0;
+    const size_t max_epoch = 20000;
     //std::cout << "L(X) : " << ConicSpace::L(X) << std::endl;
     std::cout << "Trace(X, S) : " << ConicSpace::Trace(X, S) << std::endl;
     std::cout << "Primal Constraint Norm : " << (A * X - b).norm() << std::endl;
     std::cout << "Dual constraint Norm : " << ConicSpace::Norm(C - A.transpose() * y - S) << std::endl;
-    while (Max(ConicSpace::Trace(X, S), (A*X - b).norm(), ConicSpace::Norm(C - A.transpose() * y - S)) > epsilon) {
+    while (epoch < max_epoch && Max(ConicSpace::Trace(X, S), (A*X - b).norm(), ConicSpace::Norm(C - A.transpose() * y - S)) > epsilon) {
         // Feasible Step
         std::cout << "==============================" << std::endl;
         std::cout << "Epoch: " << ++epoch << std::endl;

@@ -36,7 +36,8 @@ cc_test(
 cc_test(
     name = "mps_benchmark_test",
     srcs = ["mps_benchmark_test.cc"],
-    data = glob(["testdata/*.mps"]),
+    data = glob(["testdata/**/*.mps"]),
+    size = "medium",
     deps = [
         ":linear_programing",
         "@googletest//:gtest_main",

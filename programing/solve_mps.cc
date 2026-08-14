@@ -4,6 +4,7 @@
 #include <iostream>
 
 #include <Eigen/Dense>
+#include <Eigen/Sparse>
 #include "linear_programing.h"
 
 int main(int argc, char* argv[]) {
@@ -31,15 +32,15 @@ int main(int argc, char* argv[]) {
         return 2;
     }
 
-    Eigen::MatrixXd A;
-    Eigen::VectorXd b;
-    Eigen::VectorXd c;
-    BuildDenseLp(prob, &A, &b, &c);
+    StandardFormLp lp = BuildStandardFormLp(prob);
+    std::cout << "Standard form rows: " << lp.A.rows()
+              << ", columns: " << lp.A.cols()
+              << ", nnz: " << lp.A.nonZeros() << std::endl;
 
-    Eigen::VectorXd x = Eigen::VectorXd::Ones(c.size());
-    std::cout << "Solving LP with LPSolver2" << std::endl;
+    Eigen::VectorXd x = Eigen::VectorXd::Ones(lp.c.size());
+    std::cout << "Solving LP with LPSolver3" << std::endl;
     const auto start = std::chrono::steady_clock::now();
-    LPSolver2(c, A, b, x);
+    LPSolver3(lp.c, lp.A, lp.b, x);
     const auto elapsed_ms =
         std::chrono::duration<double, std::milli>(
             std::chrono::steady_clock::now() - start)
@@ -47,8 +48,8 @@ int main(int argc, char* argv[]) {
 
     std::cout << "Solved LP" << std::endl;
     std::cout << "Elapsed: " << elapsed_ms << " ms" << std::endl;
-    std::cout << "Objective value: " << c.dot(x) << std::endl;
-    std::cout << "Primal residual ||Ax - b||: " << (A * x - b).norm()
+    std::cout << "Objective value: " << lp.c.dot(x) + lp.objective_offset << std::endl;
+    std::cout << "Primal residual ||Ax - b||: " << (lp.A * x - lp.b).norm()
               << std::endl;
     return 0;
 }
