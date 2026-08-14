@@ -4,9 +4,10 @@ cc_library(
 	srcs = ["load_problem.cc"],
 	hdrs = [
 		"load_problem.h",
-		 "problem.h",
-		  "cost_function_auto.h"
-		  ],
+		"problem.h",
+		"cost_function_auto.h",
+		"evaluate.h",
+	],
     deps = [
         "@eigen//:eigen", 
         "@ceres",
@@ -19,6 +20,7 @@ cc_library(
 	hdrs = [
 		"problem.h",
 		"cost_function_auto.h",
+		"evaluate.h",
 	],
 	deps = [
 		"@eigen//:eigen",
@@ -80,6 +82,33 @@ cc_library(
 	],
 	deps = [
 		"daba_bal_solver",
+		"@ceres",
 		"@com_libcgraph//:cgraph",
 	]
 )
+
+cc_binary(
+	name = "bal",
+	srcs = ["bal_main.cc"],
+	deps = [
+		":load_problem",
+		":problem",
+		":ceres_bal_solver",
+		":daba_bal_solver",
+		":daba_subproblem_manager",
+		"@ceres",
+		"@eigen//:eigen",
+	],
+)
+
+cc_test(
+	name = "bal_test",
+	srcs = ["bal_test.cc"],
+	deps = [
+		":problem",
+		"@ceres",
+		"@eigen//:eigen",
+		"@googletest//:gtest",
+	],
+)
+

@@ -1,1 +1,3 @@
-build --cxxopt="-std=c++17"
+build --cxxopt=-std=c++17
+build --enable_workspace=true
+build --enable_bzlmod=false
