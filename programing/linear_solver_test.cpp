@@ -136,7 +136,7 @@ TEST(DualLogarithmSolver, Simple_case) {
     b << 1, 1;
     Eigen::VectorXd x(3);
     x.setZero();
-    // DualLogarithmSolver(c, A, b, x);
+    DualLogarithmSolver(c, A, b, x);
     
     EXPECT_NEAR(x(0), 1.0, 1e-6);
     EXPECT_NEAR(x(1), 0.0, 1e-6);
@@ -156,7 +156,7 @@ TEST(DualLogarithmSolver, Test_Case3) {
     12,
     18;
     Eigen::VectorXd x(5);
-    // DualLogarithmSolver(c,A, b, x);
+    DualLogarithmSolver(c, A, b, x);
     // Should be (2.0, 6.0, 1.0, 0.0, 0.0)
     // Should be -36.0
     double EPSILON = 1e-7;
