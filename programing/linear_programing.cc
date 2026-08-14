@@ -104,12 +104,16 @@ std::pair<Eigen::MatrixXd, Eigen::VectorXd> ToSelfEmbeddingProblem(
     SparseMatrix<double> SwapPermutation(size_t i, size_t j, size_t n) {
         SparseMatrix<double> res(n, n);
         for(int k = 0; k < n; k++) {
-          if (k != i && k != j) {
+          if (k != static_cast<int>(i) && k != static_cast<int>(j)) {
             res.insert(k, k) = 1;
           }
         }
-        res.insert(i, j) = 1;
-        res.insert(j, i) = 1;
+        if (i == j) {
+          res.insert(i, i) = 1;
+        } else {
+          res.insert(i, j) = 1;
+          res.insert(j, i) = 1;
+        }
         return res;
     }
     /**
@@ -738,9 +742,14 @@ void DualLogarithmSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A, con
 
 
 void PrimDualLogarithmSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A, const Eigen::VectorXd& b, Eigen::VectorXd& x) {
-  //FeasibleSolver(c, A, b, x, FeasiblePrimDualLogarithmSolver);
-
-  //FeasibleSolver(c, A, b, x, FeasiblePrimDualLogarithmPredictorCorrectorSolver);
+  auto functor = [](const Eigen::VectorXd& c, const Eigen::MatrixXd& A,
+                    const Eigen::VectorXd& b, const Eigen::VectorXd& initial_x,
+                    const Eigen::VectorXd& initial_y,
+                    const Eigen::VectorXd& initial_s) {
+    return FeasiblePrimDualLogarithmSolver(c, A, b, initial_x, initial_y,
+                                           initial_s);
+  };
+  FeasibleSolver(c, A, b, x, functor);
 }
 
 void SparsePrimDualLogarithmSolver(const Eigen::VectorXd& c, const Eigen::SparseMatrix<double>& A, const Eigen::VectorXd& b, Eigen::VectorXd& x) {
@@ -795,9 +804,15 @@ void LPSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A,
     Eigen::VectorXd B(2 * n + m);
     double t = (1 - sigma / std::sqrt(n)) * x.dot(z) / n;
     B << b - A * x, c - z - A.transpose() * y, t * e - x.cwiseProduct( z.cwiseProduct(e));
-    Eigen::ConjugateGradient<Eigen::SparseMatrix<double>, Eigen::Lower> solver;
+    Eigen::SparseLU<Eigen::SparseMatrix<double>> solver;
     solver.compute(H);
-    Eigen::VectorXd delta = solver.solve(B);
+    Eigen::VectorXd delta;
+    if (solver.info() == Eigen::Success) {
+      delta = solver.solve(B);
+    }
+    if (solver.info() != Eigen::Success) {
+      delta = Eigen::MatrixXd(H).fullPivLu().solve(B);
+    }
     Eigen::VectorXd delta_x = delta.block(0, 0, n, 1);
     Eigen::VectorXd delta_y = delta.block(n, 0, m, 1);
     Eigen::VectorXd delta_z = delta.block(n + m, 0, n, 1);
