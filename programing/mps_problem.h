@@ -1,6 +1,9 @@
-#include <string>
-#include <vector>
+#ifndef PROGRAMING_MPS_PROBLEM_H_
+#define PROGRAMING_MPS_PROBLEM_H_
+
+#include <Eigen/Dense>
 #include <map>
+#include <string>
 
 struct MPSProblem {
     std::string name;
@@ -17,3 +20,7 @@ struct MPSProblem {
 };
 
 MPSProblem read_mps(const std::string& filename);
+void BuildDenseLp(const MPSProblem& prob, Eigen::MatrixXd* A, Eigen::VectorXd* b,
+                  Eigen::VectorXd* c);
+
+#endif  // PROGRAMING_MPS_PROBLEM_H_
