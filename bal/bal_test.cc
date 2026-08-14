@@ -184,9 +184,13 @@ TEST(Surrogate_Function, partition_point_optimization) {
   LandmarkSurrogatecostFunction landmark_surrogate_cost_function(
       condition_camera, condition_point, uv[0], uv[1]);
 
+  double point_residual[3];
+  landmark_surrogate_cost_function(point, point_residual);
+  double x_under_x_camera_error = CostValueFromResidual(point_residual);
+
   ceres::Problem problem;
   problem.AddResidualBlock(
-      new ceres::AutoDiffCostFunction<LandmarkSurrogatecostFunction, 3, 9>(
+      new ceres::AutoDiffCostFunction<LandmarkSurrogatecostFunction, 3, 3>(
           new LandmarkSurrogatecostFunction(condition_camera, condition_point,
                                             uv[0], uv[1])),
       nullptr, point);
@@ -194,10 +198,6 @@ TEST(Surrogate_Function, partition_point_optimization) {
   ceres::Solver::Summary summary;
   ceres::Solve(options, &problem, &summary);
   std::cout << summary.BriefReport() << std::endl;
-
-  double point_residual[3];
-  landmark_surrogate_cost_function(point, point_residual);
-  double x_under_x_camera_error = CostValueFromResidual(point_residual);
 
   LandmarkSurrogatecostFunction landmark_new_cost(
       condition_camera, point, uv[0], uv[1]);
