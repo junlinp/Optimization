@@ -13,5 +13,8 @@ cc_library(
         "//solver:lm",
         "//rotation_averaging:rotation_averaging",
         "//algebra_op:algebra_operation",
+        "//RGD:rgd",
+        "//first_order_methods:first_order_methods",
     ],
-) 
+)
+ 

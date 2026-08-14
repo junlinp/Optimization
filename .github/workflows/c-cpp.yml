@@ -21,10 +21,8 @@ jobs:
         sudo apt-get install -y \
           libopenblas-dev \
           liblapack-dev \
-          libeigen3-dev \
           libsuitesparse-dev \
           build-essential \
-          cmake \
           pkg-config \
           wget \
           gfortran \

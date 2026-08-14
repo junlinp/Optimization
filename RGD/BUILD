@@ -1,17 +1,16 @@
-
-# cc_library(
-#     name = "rgd",
-#     srcs = ["rgd.cc"],
-#     hdrs = [
-#         "manifold.h",
-#         "rgd.h",
-#         "so3_cost_function_interface.h",
-#         "rgd_cost_function_interface.h",
-#         "gradient_checker.h"
-#     ],
-#     deps = ["@eigen//:eigen"],
-#     visibility = ["//visibility:public"],
-#     )
+cc_library(
+    name = "rgd",
+    srcs = ["rgd.cc"],
+    hdrs = [
+        "gradient_checker.h",
+        "manifold.h",
+        "rgd.h",
+        "rgd_cost_function_interface.h",
+        "so3_cost_function_interface.h",
+    ],
+    deps = ["@eigen//:eigen"],
+    visibility = ["//visibility:public"],
+)
 
 # cc_test(
 #     name = "rgd_test",
@@ -22,6 +21,7 @@
 #         "@ceres//:ceres",
 #     ]
 # )
+
 
 cc_library(
     name = "trust_region_subproblem",
