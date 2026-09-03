@@ -44,4 +44,23 @@ cc_test(
     ],
 )
 
+cc_library(
+    name = "quadratic_programing",
+    srcs = ["quadratic_programing.cc"],
+    hdrs = ["quadratic_programing.h"],
+    deps = [
+        "@eigen//:eigen",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_test(
+    name = "quadratic_solver_test",
+    srcs = ["quadratic_solver_test.cpp"],
+    deps = [
+        ":quadratic_programing",
+        "@googletest//:gtest_main",
+    ],
+)
+
  
