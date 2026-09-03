@@ -1,3 +1,10 @@
 build --cxxopt=-std=c++17
-build --enable_workspace=true
-build --enable_bzlmod=false
+
+# Several transitive Bazel Central Registry / git_override modules (glog,
+# gflags, google_benchmark, libpfm, hedron_compile_commands, ...) still call
+# native cc_library/cc_binary/cc_test/py_binary rules Bazel 9 removed, and we
+# can't edit their build files. Restore those via autoload (a migration aid
+# Bazel intends to remove in 10.0) rather than hand-patching every transitive
+# dependency. Set under `common` (not `build`) so it also applies to `query`
+# and other commands that don't inherit from `build`.
+common --incompatible_autoload_externally=+cc_library,+cc_binary,+cc_test,+cc_import,+py_binary,+py_library,+py_test

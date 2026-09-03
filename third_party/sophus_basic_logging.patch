@@ -1,0 +1,6 @@
+--- BUILD.bazel
++++ BUILD.bazel
+@@ -33,2 +33,3 @@
+     visibility = ["//visibility:public"],
++    defines = ["SOPHUS_USE_BASIC_LOGGING=1"],
+     deps = [ "@eigen" ],

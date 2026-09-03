@@ -1,3 +1,5 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
+
 cc_library(
     name = "tv_sr_admm",
     srcs = ["tv_sr_admm.cc"],
