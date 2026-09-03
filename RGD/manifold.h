@@ -183,12 +183,17 @@ public:
     auto InnerProduct = [](Eigen::Matrix3d a, Eigen::Matrix3d b) -> double {
       return (a.transpose() * b).trace();
     };
-    Eigen::Matrix3d remind_V = V; 
+    // Decompose X^T V rather than V. The tangent space at X is X * so(3), so
+    // the ambient gradient has to be pulled back through X before it is
+    // resolved onto the skew-symmetric basis. Resolving V directly yields
+    // X * skew(V), which agrees with the correct X * skew(X^T V) only at
+    // X = Identity.
+    Eigen::Matrix3d remind_V = X.transpose() * V;
     double v1 = InnerProduct(remind_V, tangent_e1) / (InnerProduct(tangent_e1, tangent_e1));
     remind_V = remind_V - v1 * tangent_e1;
     double v2 = InnerProduct(remind_V, tangent_e2) / (InnerProduct(tangent_e2, tangent_e2));
     remind_V = remind_V - v2 * tangent_e2;
-    double v3 = InnerProduct(V, tangent_e3) / (InnerProduct(tangent_e3, tangent_e3));
+    double v3 = InnerProduct(remind_V, tangent_e3) / (InnerProduct(tangent_e3, tangent_e3));
     remind_V = remind_V - v3 * tangent_e3;
     
 
@@ -294,16 +299,19 @@ class ProductManifold {
       const AmbientSpaceVector&x, const GeneralJacobianVector &general_gradient) {
     TangentSpaceVector res;
 
+    // general_gradient lives in the ambient space, so it is sliced by ambient
+    // sizes while res is sliced by tangent sizes. These coincide for every
+    // manifold in this header, but not for a Lie-algebra tangent space.
     res.block(0, 0, Manifold_lhs::TangentSpaceSize, 1) = Manifold_lhs::Project(
         FirstPartAmbientVector(x),
-        general_gradient.block(0, 0, Manifold_lhs::TangentSpaceSize, 1));
+        general_gradient.block(0, 0, Manifold_lhs::AmbientSpaceSize, 1));
 
     res.block(Manifold_lhs::TangentSpaceSize, 0, Manifold_rhs::TangentSpaceSize,
               1) =
         Manifold_rhs::Project(
             SecondPartAmbientVector(x),
-            general_gradient.block(Manifold_lhs::TangentSpaceSize, 0,
-                                   Manifold_rhs::TangentSpaceSize, 1));
+            general_gradient.block(Manifold_lhs::AmbientSpaceSize, 0,
+                                   Manifold_rhs::AmbientSpaceSize, 1));
     return res;
   }
 
