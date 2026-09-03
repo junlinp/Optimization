@@ -1,6 +1,61 @@
-###############################################################################
-# Bazel now uses Bzlmod by default to manage external dependencies.
-# Please consider migrating your external dependencies from WORKSPACE to MODULE.bazel.
-#
-# For more details, please check https://github.com/bazelbuild/bazel/issues/18958
-###############################################################################
+module(name = "optimization")
+
+bazel_dep(name = "rules_cc", version = "0.2.22")
+bazel_dep(name = "eigen", version = "5.0.1")
+
+# The BCR build file doesn't set EIGEN_USE_BLAS or link against a BLAS
+# implementation, so Eigen falls back to its own unoptimized linear algebra
+# -- a >10x slowdown that made first_order_methods_test time out. Patch back
+# the same defines/copts/linkopts this repo's own third_party/eigen_build.BUILD
+# set before the Bzlmod migration (Accelerate on macOS, OpenBLAS on Linux).
+single_version_override(
+    module_name = "eigen",
+    version = "5.0.1",
+    patches = [
+        "//third_party:eigen_module_platforms.patch",
+        "//third_party:eigen_blas.patch",
+    ],
+    patch_strip = 0,
+)
+
+# ceres-solver's own MODULE.bazel already declares bazel_deps on gflags and
+# glog with matching repo_names, and already carries the
+# parallel_for.cc -> parallel_vector_ops.cc source-list patch this repo used
+# to apply by hand.
+bazel_dep(name = "ceres-solver", version = "2.2.0", repo_name = "ceres")
+
+bazel_dep(name = "sophus", version = "1.22.10")
+
+# The BCR build file doesn't set SOPHUS_USE_BASIC_LOGGING, so Sophus pulls in
+# <fmt/format.h>, which we don't otherwise depend on. Patch it back in
+# (this repo's own third_party/sophus_build.BUILD set the same define before
+# the Bzlmod migration) rather than add a whole fmt dependency.
+single_version_override(
+    module_name = "sophus",
+    version = "1.22.10",
+    patches = ["//third_party:sophus_basic_logging.patch"],
+    patch_strip = 0,
+)
+
+bazel_dep(name = "googletest", version = "1.18.0.bcr.1")
+
+# Forced up from the 0.9.0 that ceres-solver's google_benchmark -> libpfm
+# chain requests transitively: 0.9.0's module extension uses a rule() API
+# argument (incompatible_use_toolchain_transition) that Bazel 9 removed.
+bazel_dep(name = "rules_foreign_cc", version = "0.15.1")
+
+# Hedron's Compile Commands Extractor for Bazel
+# https://github.com/hedronvision/bazel-compile-commands-extractor
+bazel_dep(name = "hedron_compile_commands", dev_dependency = True)
+git_override(
+    module_name = "hedron_compile_commands",
+    remote = "https://github.com/hedronvision/bazel-compile-commands-extractor.git",
+    commit = "abb61a688167623088f8768cc9264798df6a9d10",
+    # Replace the commit hash (above) with the latest
+    # (https://github.com/hedronvision/bazel-compile-commands-extractor/commits/main).
+)
+# bazel run @hedron_compile_commands//:refresh_all
+
+# Dependencies with no Bazel Central Registry module (private fork).
+non_bcr_deps = use_extension("//bazel:extensions.bzl", "non_bcr_deps")
+use_repo(non_bcr_deps, "com_libcgraph")

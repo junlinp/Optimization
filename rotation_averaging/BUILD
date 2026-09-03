@@ -1,3 +1,4 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_test(
     name = "rotation_averaging_test",
