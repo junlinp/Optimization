@@ -3,8 +3,10 @@ cc_library(
     hdrs = glob([
         "Eigen/*",
         "Eigen/**/*.h",
+        "Eigen/**/*.inc",
         "unsupported/Eigen/*",
         "unsupported/Eigen/**/*.h",
+        "unsupported/Eigen/**/*.inc",
     ]),
     copts = ["-std=c++17"] + select({
         "@platforms//os:osx": [

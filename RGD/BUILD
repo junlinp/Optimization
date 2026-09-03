@@ -12,15 +12,35 @@ cc_library(
     visibility = ["//visibility:public"],
 )
 
-# cc_test(
-#     name = "rgd_test",
-#     srcs = ["rgd_test.cc"],
-#     deps = [
-#         ":rgd",
-#         "@googletest//:gtest_main",
-#         "@ceres//:ceres",
-#     ]
-# )
+cc_library(
+    name = "sophus_manifold",
+    hdrs = ["sophus_manifold.h"],
+    deps = [
+        "@eigen//:eigen",
+        "@sophus//:sophus",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_test(
+    name = "sophus_manifold_test",
+    srcs = ["sophus_manifold_test.cc"],
+    deps = [
+        ":rgd",
+        ":sophus_manifold",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "rgd_test",
+    srcs = ["rgd_test.cc"],
+    deps = [
+        ":rgd",
+        "@googletest//:gtest_main",
+        "@ceres//:ceres",
+    ],
+)
 
 
 cc_library(

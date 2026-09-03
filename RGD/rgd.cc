@@ -110,6 +110,12 @@ bool rgd(const std::shared_ptr<RGDFirstOrderInterface>& cost_function, Eigen::Ve
     //std::cout << "Iteration [" << iteration << "] TxU" << TxU << std::endl;
     double step = RGDBackTracking(cost_function, *x_init, -TxU);
     //std::cout << "Iteration ["<< iteration << "] step size: " << step << std::endl;
+    // A failed line search returns 0.0, which leaves the iterate unchanged.
+    // The next iteration would then recompute the same direction and fail the
+    // same way, so stop rather than spin out the remaining iterations.
+    if (step == 0.0) {
+      break;
+    }
     *x_init = cost_function->Move(*x_init, step * -TxU);
     //std::cout << "Iteration [" << iteration
     //          << "] error : " << cost_function->Evaluate(*x_init) << std::endl;

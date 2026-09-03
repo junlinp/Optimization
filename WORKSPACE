@@ -67,23 +67,44 @@ http_archive(
     url = "https://github.com/google/glog/archive/v0.4.0.tar.gz",
 )
 
+# Note for any future version gate: 5.0.1 continues the 3.5 development line,
+# so the legacy triple still reads WORLD=3, MAJOR=5, MINOR=0, PATCH=1.
+# EIGEN_VERSION_AT_LEAST(5, 0, 0) is therefore false; check
+# EIGEN_VERSION_STRING, which is "5.0.1".
 http_archive(
     name = "eigen",
     build_file = "@Optimization//third_party:eigen_build.BUILD",
-    sha256 = "7985975b787340124786f092b3a07d594b2e9cd53bbfe5f3d9b1daee7d55f56f",
-    strip_prefix = "eigen-3.3.9",
-    url = "https://gitlab.com/libeigen/eigen/-/archive/3.3.9/eigen-3.3.9.tar.gz",
+    sha256 = "e9c326dc8c05cd1e044c71f30f1b2e34a6161a3b6ecf445d56b53ff1669e3dec",
+    strip_prefix = "eigen-5.0.1",
+    url = "https://gitlab.com/libeigen/eigen/-/archive/5.0.1/eigen-5.0.1.tar.gz",
 )
 
+# Ceres 2.2.0 rather than 2.0.0: 2.0.0 uses Eigen::MappedSparseMatrix, which
+# Eigen removed in 5.0.
 http_archive(
     name = "ceres",
     repo_mapping = {
+        "@com_github_gflags_gflags": "@gflags",
         "@com_github_google_glog": "@com_github_glog",
         "@com_gitlab_libeigen_eigen": "@eigen",
     },
-    sha256 = "db12d37b4cebb26353ae5b7746c7985e00877baa8e7b12dc4d3a1512252fff3b",
-    strip_prefix = "ceres-solver-2.0.0",
-    url = "https://github.com/ceres-solver/ceres-solver/archive/2.0.0.zip",
+    sha256 = "1fc28e22ce190ce4c1db04d0c2ddfdf8dc836609866d09372ea8533c8b6d490b",
+    strip_prefix = "ceres-solver-2.2.0",
+    # The 2.2.0 tarball ships a stale Bazel source list: it names
+    # parallel_for.cc, which no longer exists, and omits
+    # parallel_vector_ops.cc, which does. One substitution fixes both.
+    patch_cmds = [
+        "sed -i.bak 's|\"parallel_for.cc\",|\"parallel_vector_ops.cc\",|' bazel/ceres.bzl",
+    ],
+    url = "https://github.com/ceres-solver/ceres-solver/archive/2.2.0.zip",
+)
+
+http_archive(
+    name = "sophus",
+    build_file = "@Optimization//third_party:sophus_build.BUILD",
+    sha256 = "eb1da440e6250c5efc7637a0611a5b8888875ce6ac22bf7ff6b6769bbc958082",
+    strip_prefix = "Sophus-1.22.10",
+    url = "https://github.com/strasdat/Sophus/archive/refs/tags/1.22.10.tar.gz",
 )
 
 http_archive(
