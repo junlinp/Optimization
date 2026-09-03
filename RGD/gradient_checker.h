@@ -26,7 +26,11 @@ class GradientChecker {
         Eigen::VectorXd v = gradient;
         v.setRandom();
         v = Manifold::Project(x, v);
-        v.normalized();
+        // normalized() returns a copy; without the assignment this step
+        // length was whatever setRandom() drew, so the printed slope
+        // diagnostic below was checking convergence along an uncontrolled
+        // step size instead of a unit direction.
+        v = v.normalized();
         assert(Manifold::IsTangentSpaceVector(x, v));
         double last_delta = 0.0;
         double last_t = 0.0;

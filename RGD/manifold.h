@@ -65,16 +65,19 @@ public:
   static AmbientSpaceVector IdentityElement() {
     AmbientSpaceVector v;
     v.setRandom();
-    v.normalized();
-    return v;
+    // Eigen::MatrixBase::normalized() returns a normalized copy; it does not
+    // mutate v. The result was previously discarded, so this returned an
+    // off-manifold vector of whatever norm setRandom() happened to draw.
+    return v.normalized();
   }
 
   static AmbientSpaceVector RandomElement() {
     AmbientSpaceVector v;
-    v.setRandom();
-    v.normalized();
-    v << 0.0 ,0.707, 0.707;
-    return v;
+    v << 0.0, 0.707, 0.707;
+    // Not a unit vector as written (norm ~0.999849), which let downstream
+    // projections land measurably off the tangent plane -- see
+    // IsTangentSpaceVector below.
+    return v.normalized();
   }
 
   // y = Retraction(x + v)
@@ -96,7 +99,10 @@ public:
   }
 
   static bool IsTangentSpaceVector(const AmbientSpaceVector& x, const TangentSpaceVector& v) {
-    return x.dot(v) < 1e-5;
+    // Orthogonality is a magnitude check, not a one-sided one: the unsigned
+    // form here previously let this pass whenever x.dot(v) happened to be
+    // negative, no matter how large.
+    return std::abs(x.dot(v)) < 1e-5;
   }
 
 };
