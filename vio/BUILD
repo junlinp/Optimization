@@ -179,17 +179,51 @@ cc_library(
     visibility = ["//visibility:public"],
 )
 
-cc_binary(
-    name = "vio_demo",
-    srcs = ["vio_demo.cc"],
+cc_library(
+    name = "trajectory_evaluation",
+    srcs = ["trajectory_evaluation.cc"],
+    hdrs = ["trajectory_evaluation.h"],
     deps = [
         ":eskf_estimator",
         ":euroc_loader",
         ":euroc_types",
+        ":harris_corners",
         ":image_io",
+        ":patch_matcher",
+        ":rigid_registration",
         ":stereo_rectifier",
         ":stereo_vo_frontend",
         "@eigen//:eigen",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_test(
+    name = "trajectory_evaluation_test",
+    srcs = ["trajectory_evaluation_test.cc"],
+    data = glob(["testdata/**"]),
+    deps = [
+        ":trajectory_evaluation",
+        "@googletest//:gtest_main",
         "@sophus//:sophus",
+    ],
+)
+
+cc_binary(
+    name = "vio_demo",
+    srcs = ["vio_demo.cc"],
+    deps = [
+        ":euroc_loader",
+        ":trajectory_evaluation",
+        "@eigen//:eigen",
+    ],
+)
+
+cc_binary(
+    name = "euroc_benchmark",
+    srcs = ["euroc_benchmark.cc"],
+    deps = [
+        ":euroc_loader",
+        ":trajectory_evaluation",
     ],
 )

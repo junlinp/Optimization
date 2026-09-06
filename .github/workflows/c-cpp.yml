@@ -40,3 +40,61 @@ jobs:
     - name: Unit Test
       run: ./bazelisk test ... --test_output=errors
 
+  euroc_benchmark:
+    needs: build
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-22.04
+    permissions:
+      pull-requests: write
+    steps:
+    - uses: actions/checkout@v3
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libopenblas-dev \
+          liblapack-dev \
+          libsuitesparse-dev \
+          build-essential \
+          pkg-config \
+          wget \
+          gfortran \
+          libgfortran5
+    - name: Download bazelisk
+      run: |
+        wget -O bazelisk https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64
+        chmod +x bazelisk
+    # The EuRoC host only serves Vicon Room 1 as one bundle covering all
+    # three sequences (~5.6GB, measured ~40min to download from this host);
+    # there is no per-sequence download. The bitstream is immutable (fixed
+    # ID), so cache it indefinitely under a static key rather than
+    # re-downloading it on every PR -- only the very first run (or a cache
+    # eviction) pays the ~40min cost, every run after reuses the cache and
+    # only pays for extraction + the benchmark itself (~3min total).
+    - name: Cache EuRoC V1_01_easy bundle
+      id: cache-euroc
+      uses: actions/cache@v4
+      with:
+        path: vicon_room1.zip
+        key: euroc-vicon-room1-v1
+    - name: Download EuRoC V1_01_easy bundle
+      if: steps.cache-euroc.outputs.cache-hit != 'true'
+      run: |
+        curl -sSL -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" \
+          -o vicon_room1.zip \
+          "https://www.research-collection.ethz.ch/server/api/core/bitstreams/02ecda9a-298f-498b-970c-b7c44334d880/content"
+    - name: Extract V1_01_easy
+      run: |
+        mkdir -p data/EuRoC/vicon_room1/V1_01_easy
+        unzip -j vicon_room1.zip 'vicon_room1/V1_01_easy/V1_01_easy.zip' -d data/EuRoC/vicon_room1/V1_01_easy
+        unzip -q data/EuRoC/vicon_room1/V1_01_easy/V1_01_easy.zip -d data/EuRoC/vicon_room1/V1_01_easy
+        rm data/EuRoC/vicon_room1/V1_01_easy/V1_01_easy.zip
+    - name: Run EuRoC VIO benchmark
+      run: |
+        ./bazelisk build -c opt //vio:euroc_benchmark
+        ./bazel-bin/vio/euroc_benchmark data/EuRoC/vicon_room1/V1_01_easy/mav0 --format=markdown | tee ate_report.md
+    - name: Post benchmark result to PR
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: gh pr comment ${{ github.event.pull_request.number }} --body-file ate_report.md --edit-last --create-if-none
+
