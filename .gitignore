@@ -42,3 +42,6 @@ build/*
 /lena_lr.png
 /lena_bicubic_4k.png
 /lena_sr_4k.png
+
+# Downloaded datasets (fetched on demand, not meant to be committed)
+/data/EuRoC/
