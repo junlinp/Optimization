@@ -40,10 +40,53 @@ cc_test(
     ],
 )
 
+cc_library(
+    name = "eqf_attitude",
+    srcs = ["eqf_attitude.cc"],
+    hdrs = ["eqf_attitude.h"],
+    deps = [
+        "@eigen//:eigen",
+        "@sophus//:sophus",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_test(
+    name = "eqf_attitude_test",
+    srcs = ["eqf_attitude_test.cc"],
+    deps = [
+        ":eqf_attitude",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "eqf_star_attitude",
+    srcs = ["eqf_star_attitude.cc"],
+    hdrs = ["eqf_star_attitude.h"],
+    deps = [
+        ":eqf_attitude",
+        "@eigen//:eigen",
+        "@sophus//:sophus",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_test(
+    name = "eqf_star_attitude_test",
+    srcs = ["eqf_star_attitude_test.cc"],
+    deps = [
+        ":eqf_star_attitude",
+        "@googletest//:gtest_main",
+    ],
+)
+
 cc_binary(
     name = "benchmark",
     srcs = ["benchmark.cc"],
     deps = [
+        ":eqf_attitude",
+        ":eqf_star_attitude",
         ":eskf_attitude",
         ":simulator",
         "@eigen//:eigen",
