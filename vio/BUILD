@@ -72,6 +72,48 @@ cc_test(
 )
 
 cc_library(
+    name = "imu_trajectory_simulator",
+    srcs = ["imu_trajectory_simulator.cc"],
+    hdrs = ["imu_trajectory_simulator.h"],
+    deps = [
+        ":eskf_estimator",
+        "@eigen//:eigen",
+        "@sophus//:sophus",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_test(
+    name = "imu_trajectory_simulator_test",
+    srcs = ["imu_trajectory_simulator_test.cc"],
+    deps = [
+        ":imu_trajectory_simulator",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "anees_benchmark",
+    srcs = ["anees_benchmark.cc"],
+    hdrs = ["anees_benchmark.h"],
+    deps = [
+        ":eskf_estimator",
+        ":imu_trajectory_simulator",
+        "@eigen//:eigen",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_test(
+    name = "anees_benchmark_test",
+    srcs = ["anees_benchmark_test.cc"],
+    deps = [
+        ":anees_benchmark",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "triangulation",
     srcs = ["triangulation.cc"],
     hdrs = ["triangulation.h"],
@@ -225,5 +267,14 @@ cc_binary(
     deps = [
         ":euroc_loader",
         ":trajectory_evaluation",
+    ],
+)
+
+cc_binary(
+    name = "imu_mc_benchmark",
+    srcs = ["imu_mc_benchmark.cc"],
+    deps = [
+        ":anees_benchmark",
+        ":imu_trajectory_simulator",
     ],
 )
