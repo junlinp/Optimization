@@ -89,6 +89,17 @@ TEST(ComputeAte, NonRigidPerturbationLeavesBoundedResidual) {
   EXPECT_LT(ate.rmse_m, 0.15);
 }
 
+TEST(ComputeAte, InitialStateAlignmentDoesNotCancelMisalignment) {
+  // Same rigidly offset trajectory as RigidMisalignmentIsFullyRecovered:
+  // without best-fit alignment the offset is reported as error.
+  const Eigen::Vector3d offset(0.3, 0, 0);
+  std::vector<TrajectorySample> samples;
+  int64_t t = 0;
+  for (const auto& gt : SampleGroundTruthPath()) samples.push_back({t++, gt + offset, gt});
+  EXPECT_LT(ComputeAte(samples).rmse_m, 1e-9);
+  EXPECT_NEAR(ComputeAte(samples, AteAlignment::kInitialState).rmse_m, 0.3, 1e-9);
+}
+
 TEST(ComputeAte, TooFewSamplesReturnsDefaultResult) {
   std::vector<TrajectorySample> samples = {{0, {0, 0, 0}, {0, 0, 0}}, {1, {1, 0, 0}, {1, 0, 0}}};
   const AteResult ate = ComputeAte(samples);

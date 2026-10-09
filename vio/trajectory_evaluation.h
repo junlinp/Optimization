@@ -67,12 +67,27 @@ std::vector<TrajectorySample> RunPipeline(
     PipelineStats* stats,
     const std::function<void(long, long)>& progress_callback = nullptr);
 
+// The ground-truth sample closest in time to timestamp_ns (binary search;
+// seq.ground_truth must be sorted and non-empty).
+const GroundTruthSample& NearestGroundTruth(const EurocSequence& seq, int64_t timestamp_ns);
+
 struct AteResult {
   double rmse_m = 0;
   double mean_m = 0;
   double median_m = 0;
   double max_m = 0;
   int num_samples = 0;
+};
+
+enum class AteAlignment {
+  // Best-fit rigid alignment over the whole trajectory (the default below).
+  kUmeyama,
+  // No alignment. For a pipeline seeded from ground truth at its first
+  // sample (both RunPipeline and RunEqvioPipeline are), this is the
+  // "aligned at the initial state" convention used by e.g. MSCEqF
+  // (Fornasier et al., RA-L 2023, Sec. V-B). It never reports less error
+  // than kUmeyama.
+  kInitialState,
 };
 
 // Absolute Trajectory Error (Sturm et al., "A Benchmark for the Evaluation
@@ -82,7 +97,8 @@ struct AteResult {
 // closed-form Umeyama registration over the whole trajectory, then reports
 // RMSE/mean/median/max of the aligned position error. Requires
 // samples.size() >= 3 (Umeyama's minimum).
-AteResult ComputeAte(const std::vector<TrajectorySample>& samples);
+AteResult ComputeAte(const std::vector<TrajectorySample>& samples,
+                     AteAlignment alignment = AteAlignment::kUmeyama);
 
 // Candidate mav0/ directory paths to probe, in order; the first containing
 // a readable cam0/data.csv is returned. Returns "" if none match. Tries

@@ -265,7 +265,9 @@ cc_binary(
     name = "euroc_benchmark",
     srcs = ["euroc_benchmark.cc"],
     deps = [
+        ":eqvio_pipeline",
         ":euroc_loader",
+        ":imu_trajectory_simulator",
         ":trajectory_evaluation",
     ],
 )
@@ -276,5 +278,99 @@ cc_binary(
     deps = [
         ":anees_benchmark",
         ":imu_trajectory_simulator",
+    ],
+)
+
+cc_library(
+    name = "eqvio",
+    srcs = [
+        "eqvio.cc",
+        "eqvio_lie_groups.cc",
+    ],
+    hdrs = [
+        "eqvio.h",
+        "eqvio_lie_groups.h",
+    ],
+    deps = [
+        ":eskf_estimator",
+        "@eigen//:eigen",
+        "@sophus//:sophus",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "vio_simulator",
+    srcs = ["vio_simulator.cc"],
+    hdrs = ["vio_simulator.h"],
+    deps = [
+        ":eqvio",
+        ":imu_trajectory_simulator",
+        "@eigen//:eigen",
+        "@sophus//:sophus",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_test(
+    name = "eqvio_test",
+    srcs = ["eqvio_test.cc"],
+    deps = [
+        ":eqvio",
+        ":eskf_estimator",
+        ":vio_simulator",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_binary(
+    name = "eqvio_sim_benchmark",
+    srcs = ["eqvio_sim_benchmark.cc"],
+    deps = [
+        ":eqvio",
+        ":eskf_estimator",
+        ":vio_simulator",
+    ],
+)
+
+cc_library(
+    name = "mono_feature_tracker",
+    srcs = ["mono_feature_tracker.cc"],
+    hdrs = ["mono_feature_tracker.h"],
+    deps = [
+        ":euroc_types",
+        ":harris_corners",
+        ":image_io",
+        ":patch_matcher",
+        ":stereo_rectifier",
+        "@eigen//:eigen",
+        "@sophus//:sophus",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "eqvio_pipeline",
+    srcs = ["eqvio_pipeline.cc"],
+    hdrs = ["eqvio_pipeline.h"],
+    deps = [
+        ":eqvio",
+        ":eskf_estimator",
+        ":euroc_types",
+        ":image_io",
+        ":mono_feature_tracker",
+        ":trajectory_evaluation",
+        "@eigen//:eigen",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_test(
+    name = "mono_feature_tracker_test",
+    srcs = ["mono_feature_tracker_test.cc"],
+    deps = [
+        ":mono_feature_tracker",
+        ":stereo_rectifier",
+        "@googletest//:gtest_main",
     ],
 )
