@@ -1,5 +1,6 @@
 #include "patch_matcher.h"
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 
@@ -77,6 +78,14 @@ bool MatchStereoPatch(const GrayImage& left, const GrayImage& right, double u_le
 bool MatchTemporalPatch(const GrayImage& prev, const GrayImage& curr, double u_prev, double v_prev,
                         const PatchMatchOptions& options, double* u_curr, double* v_curr,
                         double* score) {
+  return MatchTemporalPatchNear(prev, curr, u_prev, v_prev, u_prev, v_prev,
+                                options.temporal_search_radius, options, u_curr, v_curr, score);
+}
+
+bool MatchTemporalPatchNear(const GrayImage& prev, const GrayImage& curr, double u_prev,
+                            double v_prev, double u_guess, double v_guess, int search_radius,
+                            const PatchMatchOptions& options, double* u_curr, double* v_curr,
+                            double* score) {
   if (!PatchWindowInBounds(prev, u_prev, v_prev, options.patch_radius)) return false;
   if (PatchVariance(prev, u_prev, v_prev, options.patch_radius) < options.min_query_variance) {
     return false;
@@ -85,11 +94,10 @@ bool MatchTemporalPatch(const GrayImage& prev, const GrayImage& curr, double u_p
   double best_ssd = std::numeric_limits<double>::max();
   int best_du = 0, best_dv = 0;
   bool found = false;
-  const int radius = options.temporal_search_radius;
-  for (int dv = -radius; dv <= radius; ++dv) {
-    for (int du = -radius; du <= radius; ++du) {
-      const double uc = u_prev + du;
-      const double vc = v_prev + dv;
+  for (int dv = -search_radius; dv <= search_radius; ++dv) {
+    for (int du = -search_radius; du <= search_radius; ++du) {
+      const double uc = u_guess + du;
+      const double vc = v_guess + dv;
       if (!PatchWindowInBounds(curr, uc, vc, options.patch_radius)) continue;
       const double ssd = PatchSSD(prev, u_prev, v_prev, curr, uc, vc, options.patch_radius);
       if (ssd < best_ssd) {
@@ -105,9 +113,25 @@ bool MatchTemporalPatch(const GrayImage& prev, const GrayImage& curr, double u_p
   const int patch_pixels = (2 * options.patch_radius + 1) * (2 * options.patch_radius + 1);
   if (best_ssd / patch_pixels > options.max_ssd_per_pixel) return false;
 
-  *u_curr = u_prev + best_du;
-  *v_curr = v_prev + best_dv;
+  *u_curr = u_guess + best_du;
+  *v_curr = v_guess + best_dv;
   *score = best_ssd;
+  if (options.temporal_subpixel) {
+    // Vertex of the parabola through (-1, a), (0, b), (1, c): (a - c) / (2(a - 2b + c)).
+    auto refine = [&](double du, double dv) {
+      const double uc = *u_curr + du, vc = *v_curr + dv;
+      if (!PatchWindowInBounds(curr, uc, vc, options.patch_radius)) return best_ssd;
+      return PatchSSD(prev, u_prev, v_prev, curr, uc, vc, options.patch_radius);
+    };
+    auto vertex = [](double a, double b, double c) {
+      const double denom = a - 2 * b + c;
+      return denom > 0 ? std::max(-0.5, std::min(0.5, 0.5 * (a - c) / denom)) : 0.0;
+    };
+    const double offset_u = vertex(refine(-1, 0), best_ssd, refine(1, 0));
+    const double offset_v = vertex(refine(0, -1), best_ssd, refine(0, 1));
+    *u_curr += offset_u;
+    *v_curr += offset_v;
+  }
   return true;
 }
 

@@ -14,20 +14,6 @@
 namespace vio {
 namespace {
 
-// seq.ground_truth is sorted by timestamp_ns; binary search for the entry
-// closest to `timestamp_ns`.
-const GroundTruthSample& NearestGroundTruth(const EurocSequence& seq, int64_t timestamp_ns) {
-  const auto& gt = seq.ground_truth;
-  auto it = std::lower_bound(gt.begin(), gt.end(), timestamp_ns,
-                             [](const GroundTruthSample& sample, int64_t t) {
-                               return sample.timestamp_ns < t;
-                             });
-  if (it == gt.begin()) return gt.front();
-  if (it == gt.end()) return gt.back();
-  const auto prev = it - 1;
-  return (timestamp_ns - prev->timestamp_ns <= it->timestamp_ns - timestamp_ns) ? *prev : *it;
-}
-
 struct Event {
   int64_t timestamp_ns = 0;
   bool is_camera = false;
@@ -40,6 +26,18 @@ struct FramePair {
 };
 
 }  // namespace
+
+const GroundTruthSample& NearestGroundTruth(const EurocSequence& seq, int64_t timestamp_ns) {
+  const auto& gt = seq.ground_truth;
+  auto it = std::lower_bound(gt.begin(), gt.end(), timestamp_ns,
+                             [](const GroundTruthSample& sample, int64_t t) {
+                               return sample.timestamp_ns < t;
+                             });
+  if (it == gt.begin()) return gt.front();
+  if (it == gt.end()) return gt.back();
+  const auto prev = it - 1;
+  return (timestamp_ns - prev->timestamp_ns <= it->timestamp_ns - timestamp_ns) ? *prev : *it;
+}
 
 std::vector<TrajectorySample> RunPipeline(const EurocSequence& seq, const std::string& mav0_dir,
                                           const PipelineOptions& options, PipelineStats* stats,
@@ -170,7 +168,7 @@ std::vector<TrajectorySample> RunPipeline(const EurocSequence& seq, const std::s
   return trajectory;
 }
 
-AteResult ComputeAte(const std::vector<TrajectorySample>& samples) {
+AteResult ComputeAte(const std::vector<TrajectorySample>& samples, AteAlignment alignment_mode) {
   AteResult result;
   result.num_samples = static_cast<int>(samples.size());
   if (samples.size() < 3) return result;
@@ -183,7 +181,13 @@ AteResult ComputeAte(const std::vector<TrajectorySample>& samples) {
     gt.push_back(s.p_gt);
   }
 
-  const RigidTransform alignment = UmeyamaAlignment(est, gt);
+  RigidTransform alignment;
+  if (alignment_mode == AteAlignment::kUmeyama) {
+    alignment = UmeyamaAlignment(est, gt);
+  } else {
+    alignment.R.setIdentity();
+    alignment.t.setZero();
+  }
 
   std::vector<double> errors;
   errors.reserve(samples.size());

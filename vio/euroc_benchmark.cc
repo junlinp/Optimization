@@ -1,7 +1,16 @@
 // Usage: euroc_benchmark <path/to/mav0> [--format=text|markdown]
+//                        [--estimator=eskf|eqvio]
 //
-// Runs the ESKF + hand-rolled stereo VO pipeline over one EuRoC sequence and
-// reports its Absolute Trajectory Error (ATE) against ground truth. Unlike
+// Runs one VIO pipeline over one EuRoC sequence and reports its Absolute
+// Trajectory Error (ATE) against ground truth:
+//   eskf  (default): loosely-coupled ESKF + hand-rolled stereo VO.
+//   eqvio: monocular EqVIO (vio/eqvio.h) on cam0 + a patch-tracking front end.
+//          Tuning overrides: --features=N --bearing-sigma-px=S --chi2=T
+//          --imu-noise-scale=K (multiplies all four EqvioPipelineOptions
+//          IMU densities).
+//
+// --alignment=umeyama (default) | initial: how the estimate is aligned to
+// ground truth before computing ATE; see vio::AteAlignment. Unlike
 // vio_demo, this does not fall back to a default dataset location or
 // gracefully no-op when the sequence is missing -- it's meant to be driven
 // explicitly by a script (e.g. CI), so a missing/malformed sequence is a
@@ -15,13 +24,16 @@
 #include <iostream>
 #include <sstream>
 
+#include "eqvio_pipeline.h"
 #include "euroc_loader.h"
+#include "imu_trajectory_simulator.h"
 #include "trajectory_evaluation.h"
 
 namespace {
 
 void PrintUsage(const char* argv0) {
-  std::cerr << "Usage: " << argv0 << " <path/to/mav0> [--format=text|markdown]\n";
+  std::cerr << "Usage: " << argv0
+            << " <path/to/mav0> [--format=text|markdown] [--estimator=eskf|eqvio]\n";
 }
 
 std::string FormatMeters(double value) {
@@ -73,16 +85,66 @@ void PrintMarkdown(const std::string& mav0_dir, const vio::EurocSequence& seq,
   }
 }
 
+void PrintEqvioText(const std::string& mav0_dir, const vio::EurocSequence& seq,
+                    const vio::EqvioPipelineStats& stats, const vio::AteResult& ate) {
+  std::cout << "EuRoC benchmark (EqVIO, monocular cam0): " << mav0_dir << "\n"
+            << "  " << seq.imu_samples.size() << " IMU samples, " << seq.cam0_frames.size()
+            << " cam0 frames, " << seq.ground_truth.size() << " ground-truth samples\n\n"
+            << "Camera frames processed: " << stats.camera_frames_processed << "\n"
+            << "Average tracked features/frame: " << stats.avg_tracked_features << "\n"
+            << "Average landmarks in update/frame: " << stats.avg_landmarks_used << "\n"
+            << "Outliers rejected: " << stats.outliers_rejected << "\n"
+            << "ATE samples: " << ate.num_samples << "\n"
+            << "ATE RMSE:   " << FormatMeters(ate.rmse_m) << " m\n"
+            << "ATE mean:   " << FormatMeters(ate.mean_m) << " m\n"
+            << "ATE median: " << FormatMeters(ate.median_m) << " m\n"
+            << "ATE max:    " << FormatMeters(ate.max_m) << " m\n";
+}
+
+void PrintEqvioMarkdown(const std::string& mav0_dir, const vio::EqvioPipelineStats& stats,
+                        const vio::AteResult& ate) {
+  std::cout << "### EuRoC EqVIO benchmark (monocular cam0): `" << mav0_dir << "`\n\n"
+            << "| Metric | Value |\n"
+            << "|---|---|\n"
+            << "| ATE RMSE | " << FormatMeters(ate.rmse_m) << " m |\n"
+            << "| ATE mean | " << FormatMeters(ate.mean_m) << " m |\n"
+            << "| ATE median | " << FormatMeters(ate.median_m) << " m |\n"
+            << "| ATE max | " << FormatMeters(ate.max_m) << " m |\n"
+            << "| Trajectory samples | " << ate.num_samples << " |\n"
+            << "| Camera frames processed | " << stats.camera_frames_processed << " |\n"
+            << "| Avg. tracked features/frame | " << stats.avg_tracked_features << " |\n"
+            << "| Avg. landmarks in update/frame | " << stats.avg_landmarks_used << " |\n"
+            << "| Outliers rejected | " << stats.outliers_rejected << " |\n";
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
   std::string mav0_dir;
   std::string format = "text";
+  std::string estimator = "eskf";
+  vio::EqvioPipelineOptions eqvio_options;
+  double imu_noise_scale = 1.0;
+  vio::AteAlignment alignment = vio::AteAlignment::kUmeyama;
 
   for (int i = 1; i < argc; ++i) {
     const std::string arg = argv[i];
     if (arg.rfind("--format=", 0) == 0) {
       format = arg.substr(std::string("--format=").size());
+    } else if (arg.rfind("--estimator=", 0) == 0) {
+      estimator = arg.substr(std::string("--estimator=").size());
+    } else if (arg == "--alignment=initial") {
+      alignment = vio::AteAlignment::kInitialState;
+    } else if (arg == "--alignment=umeyama") {
+      alignment = vio::AteAlignment::kUmeyama;
+    } else if (arg.rfind("--features=", 0) == 0) {
+      eqvio_options.tracker.max_features = std::stoi(arg.substr(11));
+    } else if (arg.rfind("--bearing-sigma-px=", 0) == 0) {
+      eqvio_options.bearing_sigma_px = std::stod(arg.substr(19));
+    } else if (arg.rfind("--chi2=", 0) == 0) {
+      eqvio_options.outlier_chi2_threshold = std::stod(arg.substr(7));
+    } else if (arg.rfind("--imu-noise-scale=", 0) == 0) {
+      imu_noise_scale = std::stod(arg.substr(18));
     } else if (mav0_dir.empty()) {
       mav0_dir = arg;
     } else {
@@ -91,7 +153,8 @@ int main(int argc, char** argv) {
     }
   }
 
-  if (mav0_dir.empty() || (format != "text" && format != "markdown")) {
+  if (mav0_dir.empty() || (format != "text" && format != "markdown") ||
+      (estimator != "eskf" && estimator != "eqvio")) {
     PrintUsage(argv[0]);
     return 1;
   }
@@ -110,6 +173,30 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+  if (estimator == "eqvio") {
+    vio::EqvioPipelineStats stats;
+    std::vector<vio::TrajectorySample> trajectory;
+    try {
+      eqvio_options.imu_noise = vio::ScaleNoise(eqvio_options.imu_noise, imu_noise_scale);
+      trajectory = vio::RunEqvioPipeline(seq, resolved, eqvio_options, &stats);
+    } catch (const std::exception& e) {
+      std::cerr << "Pipeline failed: " << e.what() << "\n";
+      return 1;
+    }
+    if (trajectory.size() < 3) {
+      std::cerr << "Pipeline produced too few trajectory samples (" << trajectory.size()
+                << ") to compute ATE (need >= 3).\n";
+      return 1;
+    }
+    const vio::AteResult ate = vio::ComputeAte(trajectory, alignment);
+    if (format == "markdown") {
+      PrintEqvioMarkdown(resolved, stats, ate);
+    } else {
+      PrintEqvioText(resolved, seq, stats, ate);
+    }
+    return 0;
+  }
+
   vio::PipelineOptions options;
   vio::PipelineStats stats;
   std::vector<vio::TrajectorySample> trajectory;
@@ -126,7 +213,7 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  const vio::AteResult ate = vio::ComputeAte(trajectory);
+  const vio::AteResult ate = vio::ComputeAte(trajectory, alignment);
 
   if (format == "markdown") {
     PrintMarkdown(resolved, seq, stats, ate);
