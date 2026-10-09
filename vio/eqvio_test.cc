@@ -84,7 +84,11 @@ TEST(EqvioGroups, SE23ExpLogRoundTrip) {
   std::mt19937 rng(1);
   for (int trial = 0; trial < 20; ++trial) {
     Vector9d xi;
-    xi << RandomVector(rng, 1.0), RandomVector(rng, 2.0), RandomVector(rng, 2.0);
+    Vector3d phi = RandomVector(rng, 1.0);
+    // log is only the inverse of exp for rotation angles below pi; beyond it
+    // log returns the equivalent 2*pi - theta rotation instead.
+    if (phi.norm() > 3.0) phi *= 3.0 / phi.norm();
+    xi << phi, RandomVector(rng, 2.0), RandomVector(rng, 2.0);
     EXPECT_LT((SE23::log(SE23::exp(xi)) - xi).norm(), 1e-9);
   }
 }
