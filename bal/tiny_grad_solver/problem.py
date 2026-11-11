@@ -140,7 +140,7 @@ class Problem:
         #    loss = loss.add(ob.forward(self.camera_parameters, self.point_parameters))
         #print(loss.numpy())
 
-p = Problem("./problem-49-7776-pre.txt")
+p = Problem("./data/problem-49-7776-pre.txt")
 for i in range(8):
     p.Step()
 
