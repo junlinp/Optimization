@@ -6,7 +6,7 @@
 // V-A of Delama et al., "Equivariant IMU Preintegration with Biases: A
 // Galilean Group Approach" (arXiv:2411.05548): M independent noisy
 // realizations of a circular-plus-cosine trajectory (see
-// vio/imu_trajectory_simulator.h) are run through the filter's own
+// application/vio/imu_trajectory_simulator.h) are run through the filter's own
 // covariance propagation, and ANEES is reported at a set of elapsed times
 // for three noise levels (low/medium/high, lambda = 0.1/1/10 scaling the
 // paper's baseline discrete sigmas). A perfectly consistent filter reports
@@ -14,7 +14,7 @@
 //
 // The paper does not publish the exact trajectory radius/rate it used, so
 // this reproduces the qualitative pattern, not the exact numeric curve --
-// see the reconstruction note in vio/imu_trajectory_simulator.h.
+// see the reconstruction note in application/vio/imu_trajectory_simulator.h.
 //
 // --runs defaults to 200 (a few seconds); pass --runs=1000 to match the
 // paper's M exactly (several minutes at the default 30s/200Hz settings).

@@ -4,7 +4,7 @@
 // Runs one VIO pipeline over one EuRoC sequence and reports its Absolute
 // Trajectory Error (ATE) against ground truth:
 //   eskf  (default): loosely-coupled ESKF + hand-rolled stereo VO.
-//   eqvio: monocular EqVIO (vio/eqvio.h) on cam0 + a patch-tracking front end.
+//   eqvio: monocular EqVIO (application/vio/eqvio.h) on cam0 + a patch-tracking front end.
 //          Tuning overrides: --features=N --bearing-sigma-px=S --chi2=T
 //          --imu-noise-scale=K (multiplies all four EqvioPipelineOptions
 //          IMU densities).

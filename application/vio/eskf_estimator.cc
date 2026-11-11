@@ -30,7 +30,7 @@ void EskfEstimator::Predict(const Eigen::Vector3d& gyro_meas,
   const Eigen::Matrix3d a_skew = Sophus::SO3d::hat(a);
 
   // Error-state transition Jacobian F_x. See eskf_estimator.h and the plan
-  // (vio/BUILD-adjacent design doc) for the derivation; the dtheta/dtheta
+  // (application/vio/BUILD-adjacent design doc) for the derivation; the dtheta/dtheta
   // block is the SO(3) adjoint of the (negative of the) rotation increment,
   // everything else is unlisted-zero except the diagonal identity blocks.
   Matrix15 F_x = Matrix15::Identity();

@@ -10,15 +10,15 @@ namespace {
 
 // Bazel's test working directory/runfiles layout isn't guaranteed to be the
 // repo root (see euroc_loader_test.cc's FindTestdataMav0Dir), so probe the
-// same set of candidates here rather than assume "vio/testdata/mav0"
+// same set of candidates here rather than assume "application/vio/testdata/mav0"
 // resolves directly.
 std::vector<std::string> TestdataCandidates() {
   const std::string srcdir = std::getenv("TEST_SRCDIR") ? std::getenv("TEST_SRCDIR") : ".";
   return {
-      "vio/testdata/mav0",
+      "application/vio/testdata/mav0",
       "testdata/mav0",
-      srcdir + "/Optimization/vio/testdata/mav0",
-      srcdir + "/_main/vio/testdata/mav0",
+      srcdir + "/Optimization/application/vio/testdata/mav0",
+      srcdir + "/_main/application/vio/testdata/mav0",
   };
 }
 
