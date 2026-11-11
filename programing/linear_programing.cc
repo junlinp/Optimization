@@ -1,4 +1,5 @@
 #include "linear_programing.h"
+#include "jordan_conic.h"
 #include <assert.h>
 #include "iostream"
 #include <cmath>
@@ -1160,153 +1161,33 @@ CenteringStep(const Eigen::SparseMatrix<double>& A, const Eigen::VectorXd& X,
     return {delta_x, dy, delta_s};
 }
 
-static Eigen::VectorXd PrimalFeasibilityStep(const Eigen::SparseMatrix<double>& A,
-                                      const Eigen::VectorXd& x,
-                                      const Eigen::VectorXd& b) {
-    Eigen::VectorXd r = A * x - b;
-    Eigen::VectorXd x2 = x.array().square().matrix();
-    Eigen::SparseMatrix<double> ADAT = ScaleSparseColumns(A, x2) * A.transpose();
-    ADAT.makeCompressed();
-    Eigen::VectorXd dy = SolveNormalEquations(ADAT, r);
-    return -x2.cwiseProduct(Eigen::VectorXd(A.transpose() * dy));
-}
-
-static void RuizEquilibrate(Eigen::SparseMatrix<double>* A, Eigen::VectorXd* b,
-                     Eigen::VectorXd* c, Eigen::VectorXd* col_scale) {
-    using Eigen::SparseMatrix;
-    using Eigen::VectorXd;
-    const int m = static_cast<int>(A->rows());
-    const int n = static_cast<int>(A->cols());
-    col_scale->setOnes(n);
-    VectorXd row_scale = VectorXd::Ones(m);
-    for (int iter = 0; iter < 8; ++iter) {
-        VectorXd row_inf = VectorXd::Zero(m);
-        VectorXd col_inf = VectorXd::Zero(n);
-        for (int k = 0; k < A->outerSize(); ++k) {
-            for (SparseMatrix<double>::InnerIterator it(*A, k); it; ++it) {
-                const double mag = std::abs(it.value());
-                row_inf(it.row()) = std::max(row_inf(it.row()), mag);
-                col_inf(it.col()) = std::max(col_inf(it.col()), mag);
-            }
-        }
-        for (int i = 0; i < m; ++i) {
-            row_inf(i) = std::max(row_inf(i), std::abs((*b)(i)));
-        }
-        for (int j = 0; j < n; ++j) {
-            col_inf(j) = std::max(col_inf(j), std::abs((*c)(j)));
-        }
-        for (int i = 0; i < m; ++i) {
-            row_inf(i) = std::sqrt(std::max(row_inf(i), 1e-16));
-        }
-        for (int j = 0; j < n; ++j) {
-            col_inf(j) = std::sqrt(std::max(col_inf(j), 1e-16));
-        }
-        for (int k = 0; k < A->outerSize(); ++k) {
-            for (SparseMatrix<double>::InnerIterator it(*A, k); it; ++it) {
-                it.valueRef() /= row_inf(it.row()) * col_inf(it.col());
-            }
-        }
-        b->array() /= row_inf.array();
-        c->array() /= col_inf.array();
-        row_scale.array() /= row_inf.array();
-        col_scale->array() /= col_inf.array();
+LPResult SolveLP3(const Eigen::VectorXd& c, const Eigen::SparseMatrix<double>& A,
+                  const Eigen::VectorXd& b, size_t max_iterations, double tolerance) {
+    LPResult result;
+    if (max_iterations > static_cast<size_t>(std::numeric_limits<int>::max())) return result;
+    jordan::Options options;
+    options.max_iterations = static_cast<int>(max_iterations);
+    options.tolerance = tolerance;
+    options.backend = jordan::Backend::SparseLP;
+    const auto solved = jordan::SolveSparse(A, b, c,
+        {{jordan::ConeType::Nonnegative, static_cast<int>(c.size())}}, options);
+    result.x = solved.x; result.y = solved.y; result.s = solved.s;
+    result.iterations = static_cast<size_t>(solved.iterations);
+    result.primal_residual = solved.primal_residual;
+    result.dual_residual = solved.dual_residual;
+    result.gap = solved.gap;
+    switch (solved.status) {
+      case jordan::Status::Optimal: result.status = LPStatus::Optimal; break;
+      case jordan::Status::MaxIterations: result.status = LPStatus::IterationLimit; break;
+      case jordan::Status::NumericalFailure: result.status = LPStatus::NumericalFailure; break;
+      case jordan::Status::InvalidInput: result.status = LPStatus::InvalidInput; break;
     }
+    return result;
 }
 
 void LPSolver3(const Eigen::VectorXd& c, const Eigen::SparseMatrix<double>& A,
                const Eigen::VectorXd& b, Eigen::VectorXd& x) {
-    Eigen::SparseMatrix<double> As = A;
-    As.makeCompressed();
-    Eigen::VectorXd bs = b;
-    Eigen::VectorXd cs = c;
-    Eigen::VectorXd col_scale;
-    RuizEquilibrate(&As, &bs, &cs, &col_scale);
-
-    const double zeta = 5.0;
-    const double epsilon = 1e-7;
-    const double theta = 1.0 / std::sqrt(2.0 * static_cast<double>(cs.size()));
-    Eigen::VectorXd xs = OrthantSpace::IdentityWithPurterbed(cs.size(), zeta);
-    Eigen::VectorXd S = xs;
-    Eigen::VectorXd y = Eigen::VectorXd::Zero(As.rows());
-    Eigen::VectorXd best_x = xs;
-    double best_score = std::numeric_limits<double>::infinity();
-    size_t epoch = 0;
-    const size_t max_epoch = 400;
-    while (epoch < max_epoch) {
-        const double prim = (As * xs - bs).norm();
-        const double dual = OrthantSpace::Norm(cs - As.transpose() * y - S);
-        const double gap = OrthantSpace::Trace(xs, S);
-        const double score = prim + gap;
-        if (score < best_score && xs.allFinite()) {
-            best_score = score;
-            best_x = xs;
-        }
-        if (score <= epsilon || (prim <= 1e-6 && gap <= 1e-6 && dual <= 1e-4)) {
-            break;
-        }
-        if (epoch > 40 && gap < 1e-8 && prim > 1e-3) {
-            break;
-        }
-        ++epoch;
-        if (prim > 1e-4) {
-            Eigen::VectorXd dxf = PrimalFeasibilityStep(As, xs, bs);
-            const double alpha =
-                OrthantStepScale(xs, dxf, S, Eigen::VectorXd::Zero(S.size()), 0.9);
-            xs += alpha * dxf;
-            xs = xs.cwiseMax(1e-8);
-            if (epoch == 1 || epoch % 50 == 0) {
-                std::cout << "LPSolver3 epoch " << epoch << " feas obj=" << cs.dot(xs)
-                          << " prim=" << (As * xs - bs).norm()
-                          << " gap=" << xs.dot(S) << std::endl;
-            }
-            continue;
-        }
-        const double theta_k = theta;
-        const double mu =
-            std::max(xs.dot(S) / static_cast<double>(xs.size()), 1e-12);
-        auto [dx, dy, ds] =
-            FeasibleStep(cs, As, bs, xs, y, S, xs, S, 1.0, mu, theta_k, OrthantSpace{});
-        xs += dx;
-        y += dy;
-        S += ds;
-        const double xmin = (prim > 1e-3) ? 1e-6 : 1e-14;
-        xs = xs.cwiseMax(xmin);
-        S = S.cwiseMax(xmin);
-        if (prim <= 1e-3) {
-            const double mu_target = std::max((1.0 - theta_k) * mu, 1e-12);
-            Eigen::VectorXd v = ComputeV<OrthantSpace>(xs, S, mu_target);
-            double delta_distance =
-                0.5 * OrthantSpace::Norm(OrthantSpace::Inverse(v) - v);
-            int centering = 0;
-            while (delta_distance > 0.5 && centering < 16 && xs.allFinite() &&
-                   S.allFinite()) {
-                auto [cx, cy, cs_step] =
-                    CenteringStep(As, xs, S, mu_target, OrthantSpace{});
-                xs += cx;
-                y += cy;
-                S += cs_step;
-                xs = xs.cwiseMax(xmin);
-                S = S.cwiseMax(xmin);
-                v = ComputeV<OrthantSpace>(xs, S, mu_target);
-                delta_distance =
-                    0.5 * OrthantSpace::Norm(OrthantSpace::Inverse(v) - v);
-                ++centering;
-            }
-        }
-        if (epoch == 1 || epoch % 50 == 0) {
-            std::cout << "LPSolver3 epoch " << epoch << " obj=" << cs.dot(xs)
-                      << " prim=" << (As * xs - bs).norm()
-                      << " gap=" << xs.dot(S) << std::endl;
-        }
-        if (!xs.allFinite() || !S.allFinite()) {
-            xs = best_x;
-            break;
-        }
-    }
-    if ((As * xs - bs).norm() > (As * best_x - bs).norm()) {
-        xs = best_x;
-    }
-    x = col_scale.cwiseProduct(xs);
+    x = SolveLP3(c, A, b).x;
 }
 
 

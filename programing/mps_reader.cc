@@ -143,29 +143,18 @@ MPSProblem read_mps(const std::string& filename) {
 
     auto parse_name_pairs = [&](const std::vector<std::string>& tok, size_t start,
                                 std::map<int64_t, double>* dest) {
+        if (start >= tok.size() || (tok.size() - start) % 2 != 0) return false;
+        std::vector<std::pair<std::string, double>> entries;
         for (size_t i = start; i + 1 < tok.size(); i += 2) {
             double val = 0.0;
-            if (!ParseDouble(tok[i + 1], &val)) {
+            if (!ParseDouble(tok[i + 1], &val) ||
+                (prob.row_index.find(tok[i]) == prob.row_index.end() && tok[i] != prob.objective_row_name)) {
                 return false;
             }
-            add_row_value(dest, tok[i], val);
+            entries.emplace_back(tok[i], val);
         }
-        return tok.size() > start;
-    };
-
-    auto parse_fixed_pairs = [&](const std::string& line, std::map<int64_t, double>* dest) {
-        const std::string r1 = FixedField(line, 15, 22);
-        const std::string v1s = FixedField(line, 25, 36);
-        double v1 = 0.0;
-        if (!r1.empty() && ParseDouble(v1s, &v1)) {
-            add_row_value(dest, r1, v1);
-        }
-        const std::string r2 = FixedField(line, 40, 47);
-        const std::string v2s = FixedField(line, 50, 61);
-        double v2 = 0.0;
-        if (!r2.empty() && ParseDouble(v2s, &v2)) {
-            add_row_value(dest, r2, v2);
-        }
+        for (const auto& entry : entries) add_row_value(dest, entry.first, entry.second);
+        return true;
     };
 
     while (std::getline(file, line)) {
@@ -271,18 +260,12 @@ MPSProblem read_mps(const std::string& filename) {
             }
         } else if (section == "RHS") {
             const auto tok = Tokens(line);
-            if (tok.size() >= 3 && !parse_name_pairs(tok, 1, &prob.rhs)) {
-                parse_fixed_pairs(line, &prob.rhs);
-            } else if (tok.size() < 3) {
-                parse_fixed_pairs(line, &prob.rhs);
-            }
+            if (!parse_name_pairs(tok, tok.size() % 2, &prob.rhs))
+                throw std::runtime_error("Invalid RHS record: " + line);
         } else if (section == "RANGES") {
             const auto tok = Tokens(line);
-            if (tok.size() >= 3 && !parse_name_pairs(tok, 1, &prob.ranges)) {
-                parse_fixed_pairs(line, &prob.ranges);
-            } else if (tok.size() < 3) {
-                parse_fixed_pairs(line, &prob.ranges);
-            }
+            if (!parse_name_pairs(tok, tok.size() % 2, &prob.ranges))
+                throw std::runtime_error("Invalid RANGES record: " + line);
         } else if (section == "BOUNDS") {
             auto tok = Tokens(line);
             if (tok.size() < 3) {
