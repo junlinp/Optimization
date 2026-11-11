@@ -20,8 +20,19 @@ void LPSolver(const Eigen::VectorXd& c, const Eigen::MatrixXd& A,
  **/
 void LPSolver2(const Eigen::VectorXd& c, const Eigen::MatrixXd& A,
                const Eigen::VectorXd& b, Eigen::VectorXd& x);
+// Compatibility wrapper: discards status and dual information. Prefer SolveLP3.
 void LPSolver3(const Eigen::VectorXd& c, const Eigen::SparseMatrix<double>& A,
                const Eigen::VectorXd& b, Eigen::VectorXd& x);
+enum class LPStatus { Optimal, IterationLimit, Stalled, NumericalFailure, InvalidInput };
+struct LPResult {
+  LPStatus status = LPStatus::InvalidInput;
+  Eigen::VectorXd x, y, s;
+  size_t iterations = 0;
+  double primal_residual = 0.0, dual_residual = 0.0, gap = 0.0;
+};
+LPResult SolveLP3(const Eigen::VectorXd& c, const Eigen::SparseMatrix<double>& A,
+                  const Eigen::VectorXd& b, size_t max_iterations = 400,
+                  double tolerance = 1e-6);
 /**
  * @brief solve the robust LP Problem
  *          min <c, x>

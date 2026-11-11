@@ -2,10 +2,11 @@
 
 #include <chrono>
 #include <iostream>
+#include <iomanip>
 
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
-#include "linear_programing.h"
+#include "jordan_conic.h"
 
 int main(int argc, char* argv[]) {
 #ifdef EIGEN_USE_OPENMP
@@ -37,19 +38,32 @@ int main(int argc, char* argv[]) {
               << ", columns: " << lp.A.cols()
               << ", nnz: " << lp.A.nonZeros() << std::endl;
 
-    Eigen::VectorXd x = Eigen::VectorXd::Ones(lp.c.size());
-    std::cout << "Solving LP with LPSolver3" << std::endl;
+    std::cout << "Solving LP with sparse Jordan backend" << std::endl;
     const auto start = std::chrono::steady_clock::now();
-    LPSolver3(lp.c, lp.A, lp.b, x);
+    jordan::Options options;
+    options.max_iterations = 400;
+    options.tolerance = 1e-6;
+    const jordan::Result result = jordan::SolveSparse(
+        lp.A, lp.b, lp.c, {{jordan::ConeType::Nonnegative, static_cast<int>(lp.c.size())}}, options);
     const auto elapsed_ms =
         std::chrono::duration<double, std::milli>(
             std::chrono::steady_clock::now() - start)
             .count();
 
-    std::cout << "Solved LP" << std::endl;
+    const char* status = "invalid input";
+    switch (result.status) {
+      case jordan::Status::Optimal: status = "optimal"; break;
+      case jordan::Status::MaxIterations: status = "iteration limit"; break;
+      case jordan::Status::NumericalFailure: status = "numerical failure"; break;
+      case jordan::Status::InvalidInput: break;
+    }
+    std::cout << "Status: " << status << " (iterations: " << result.iterations << ")" << std::endl;
     std::cout << "Elapsed: " << elapsed_ms << " ms" << std::endl;
-    std::cout << "Objective value: " << lp.c.dot(x) + lp.objective_offset << std::endl;
-    std::cout << "Primal residual ||Ax - b||: " << (lp.A * x - lp.b).norm()
-              << std::endl;
-    return 0;
+    if (result.x.size() == lp.c.size()) {
+      std::cout << std::setprecision(12) << "Objective value: " << lp.c.dot(result.x) + lp.objective_offset << std::endl;
+      std::cout << "Primal residual ||Ax - b||: " << result.primal_residual << std::endl;
+      std::cout << "Dual residual ||c - A^T y - s||: " << result.dual_residual << std::endl;
+      std::cout << "Complementarity gap: " << result.gap << std::endl;
+    }
+    return result.status == jordan::Status::Optimal ? 0 : 3;
 }
