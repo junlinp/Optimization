@@ -1,4 +1,4 @@
-// Usage: bazel run //vio:vio_demo -- [path/to/mav0]
+// Usage: bazel run //application/vio:vio_demo -- [path/to/mav0]
 //
 // Runs the full loosely-coupled ESKF + hand-rolled stereo VO pipeline over
 // one EuRoC sequence and reports its Absolute Trajectory Error (ATE)
@@ -23,7 +23,7 @@ void PrintPrepInstructions() {
             << "  unzip data/EuRoC/vicon_room1/V1_01_easy/V1_01_easy.zip -d "
                "data/EuRoC/vicon_room1/V1_01_easy\n"
             << "  rm data/EuRoC/vicon_room1/V1_01_easy/V1_01_easy.zip\n\n"
-            << "then rerun: bazel run //vio:vio_demo\n";
+            << "then rerun: bazel run //application/vio:vio_demo\n";
 }
 
 }  // namespace

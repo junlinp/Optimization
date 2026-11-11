@@ -13,7 +13,7 @@ cc_library(
         "//RGD:trust_region_subproblem",
         "//RGD:conjugate_gradient",
         "//solver:lm",
-        "//rotation_averaging:rotation_averaging",
+        "//application/rotation_averaging:rotation_averaging",
         "//algebra_op:algebra_operation",
         "//RGD:rgd",
         "//first_order_methods:first_order_methods",

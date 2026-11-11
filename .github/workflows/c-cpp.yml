@@ -91,10 +91,10 @@ jobs:
         rm data/EuRoC/vicon_room1/V1_01_easy/V1_01_easy.zip
     - name: Run EuRoC VIO benchmark
       run: |
-        ./bazelisk build -c opt //vio:euroc_benchmark
-        ./bazel-bin/vio/euroc_benchmark data/EuRoC/vicon_room1/V1_01_easy/mav0 --format=markdown | tee ate_report.md
+        ./bazelisk build -c opt //application/vio:euroc_benchmark
+        ./bazel-bin/application/vio/euroc_benchmark data/EuRoC/vicon_room1/V1_01_easy/mav0 --format=markdown | tee ate_report.md
         echo >> ate_report.md
-        ./bazel-bin/vio/euroc_benchmark data/EuRoC/vicon_room1/V1_01_easy/mav0 --format=markdown --estimator=eqvio | tee -a ate_report.md
+        ./bazel-bin/application/vio/euroc_benchmark data/EuRoC/vicon_room1/V1_01_easy/mav0 --format=markdown --estimator=eqvio | tee -a ate_report.md
     - name: Post benchmark result to PR
       env:
         GH_TOKEN: ${{ github.token }}

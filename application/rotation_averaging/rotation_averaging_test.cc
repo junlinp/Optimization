@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 #include <Eigen/Dense>
-#include "rotation_averaging/rotation_averaging.h"
+#include "application/rotation_averaging/rotation_averaging.h"
 
 TEST(RotationAveragingTest, BasicFunctionality) {
     // Setup test data

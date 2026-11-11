@@ -2,7 +2,7 @@
 //                            [--init-scale=K] [--format=text|markdown]
 //
 // Monte Carlo consistency and convergence benchmark for EqvioEstimator on the
-// synthetic scene of vio/vio_simulator.h (the extrinsic/bias convergence
+// synthetic scene of application/vio/vio_simulator.h (the extrinsic/bias convergence
 // experiment of van Goor & Mahony, EqVIO, arXiv:2205.01980, Sec. 7.3). Each
 // run draws a fresh landmark layout, fresh IMU and pixel noise, true IMU
 // biases from the filter's bias prior, and an initial estimate whose error is
@@ -11,7 +11,7 @@
 // NEES = eps^T Sigma^-1 eps, eps = vartheta(phi(X_hat^-1, xi))).
 // --init-scale multiplies every initial-error standard deviation.
 //
-// Build with -c opt: `bazelisk run -c opt //vio:eqvio_sim_benchmark`.
+// Build with -c opt: `bazelisk run -c opt //application/vio:eqvio_sim_benchmark`.
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>

@@ -1,4 +1,4 @@
-#include "rotation_averaging/rotation_averaging.h"
+#include "application/rotation_averaging/rotation_averaging.h"
 
 #include <ceres/ceres.h>
 #include <Eigen/Dense>

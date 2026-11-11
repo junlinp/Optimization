@@ -26,12 +26,12 @@ std::string FindLena(const std::string& explicit_path) {
         }
     }
     const std::vector<std::string> candidates = {
-        "super_resolution/testdata/lena.png",
+        "application/super_resolution/testdata/lena.png",
         "testdata/lena.png",
         std::string(std::getenv("TEST_SRCDIR") ? std::getenv("TEST_SRCDIR") : ".") +
-            "/Optimization/super_resolution/testdata/lena.png",
+            "/Optimization/application/super_resolution/testdata/lena.png",
         std::string(std::getenv("TEST_SRCDIR") ? std::getenv("TEST_SRCDIR") : ".") +
-            "/_main/super_resolution/testdata/lena.png",
+            "/_main/application/super_resolution/testdata/lena.png",
     };
     for (const auto& path : candidates) {
         std::ifstream in(path);

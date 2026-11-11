@@ -12,12 +12,12 @@ namespace {
 // working directory/runfiles layout isn't guaranteed to be the repo root.
 std::string FindTestdataMav0Dir() {
   const std::vector<std::string> candidates = {
-      "vio/testdata/mav0",
+      "application/vio/testdata/mav0",
       "testdata/mav0",
       std::string(std::getenv("TEST_SRCDIR") ? std::getenv("TEST_SRCDIR") : ".") +
-          "/Optimization/vio/testdata/mav0",
+          "/Optimization/application/vio/testdata/mav0",
       std::string(std::getenv("TEST_SRCDIR") ? std::getenv("TEST_SRCDIR") : ".") +
-          "/_main/vio/testdata/mav0",
+          "/_main/application/vio/testdata/mav0",
   };
   for (const auto& path : candidates) {
     std::ifstream probe(path + "/cam0/data.csv");
