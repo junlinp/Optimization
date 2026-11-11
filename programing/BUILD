@@ -70,7 +70,7 @@ cc_test(
 
 cc_library(
     name = "jordan_conic",
-    srcs = ["jordan_conic.cc"],
+    srcs = ["jordan_conic.cc", "jordan_core.inc"],
     hdrs = ["jordan_conic.h", "conic_optimality.h"],
     deps = ["@eigen//:eigen"],
     visibility = ["//visibility:public"],
